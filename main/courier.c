@@ -39,7 +39,7 @@
 static const uint16_t SRC_COLOR[SRC_COUNT] = {
     [SRC_HALLO] = RGB(150, 90, 200), [SRC_NEWS] = RGB(30, 90, 190), [SRC_WETTER] = RGB(40, 150, 220),
     [SRC_WIKI_HEUTE] = RGB(190, 130, 40), [SRC_WIKI_GEBURT] = RGB(210, 80, 140), [SRC_WIKI_ZUFALL] = RGB(110, 110, 130),
-    [SRC_FAKT] = RGB(40, 160, 100),
+    [SRC_FAKT] = RGB(40, 160, 100), [SRC_JW] = RGB(90, 70, 170),
 };
 
 static int theme;   /* 0 = Eule in der Landschaft, 1 = Roboter in der zerfallenen Stadt */

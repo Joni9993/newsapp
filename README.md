@@ -55,6 +55,7 @@ main/            Firmware (C, ESP-IDF-Komponente)
   web.c          HTTP-Server + REST-API (/api/v1/...)
   index.html, app.js, style.css   Weboberfläche (wird eingebettet)
   ical.c, calendar.c              iCal-Parser und Kalender-Modul
+  rss.c          RSS/Atom-Leser (JW.ORG-Nachrichten)
   notify.c       Push-Nachrichten
   config.c       Einstellungen (im NVS gespeichert)
 tests/           Host-Tests für den iCal-Parser (Python + ctypes)
