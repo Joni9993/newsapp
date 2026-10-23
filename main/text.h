@@ -1,7 +1,13 @@
 /* Text fuer die 3x5-Pixelschrift: nur Grossbuchstaben, Ziffern und ein paar Zeichen.
- * Umlaute werden ausgeschrieben (Ae, Oe, Ue, Ss), typografische Zeichen vereinfacht. */
+ * Umlaute und ss behalten ein eigenes Zeichen (Codes unten), typografische Zeichen werden vereinfacht. */
 #pragma once
 #include <stddef.h>
+
+/* Eigene Schriftzeichen fuer Ae, Oe, Ue und Eszett (1 Byte, unterhalb von Leerzeichen) */
+#define TEXT_AE "\x01"
+#define TEXT_OE "\x02"
+#define TEXT_UE "\x03"
+#define TEXT_SZ "\x04"
 
 /* UTF-8 -> darstellbarer Text (Grossbuchstaben). Schneidet bei max-1 Zeichen ab. */
 void text_simplify(char *out, size_t max, const char *utf8);

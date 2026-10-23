@@ -229,6 +229,8 @@ void gfx_spr_rot_outline(const spr_t *s, int px, int py, int ox, int oy, int ang
 /* 3x5-Schrift: 15 Bit, oberste Zeile in den hohen Bits. */
 static uint16_t glyph(char ch)
 {
+    /* 1..3 = Ae Oe Ue (Grundbuchstabe, Punkte zeichnet accent()), 4 = Eszett */
+    if (ch == 1) ch = 'A'; else if (ch == 2) ch = 'O'; else if (ch == 3) ch = 'U'; else if (ch == 4) return 0x3BAE;
     static const uint16_t dig[10] = { 0x7B6F, 0x2C97, 0x73E7, 0x73CF, 0x5BC9, 0x79CF, 0x79EF, 0x7292, 0x7BEF, 0x7BCF };
     static const uint16_t abc[26] = {
         0x2BED, 0x6BAE, 0x3923, 0x6B6E, 0x79A7, 0x79A4, 0x396B, 0x5BED, 0x7497, 0x126A,
@@ -251,6 +253,9 @@ static uint16_t glyph(char ch)
     return 0;
 }
 
+/* Umlautpunkte: eine Zeile ueber der Schrift (in der Zeilenluecke) */
+static bool accent(char ch) { return ch >= 1 && ch <= 3; }
+
 int gfx_text_w(const char *t) { int n = (int)strlen(t); return n ? n * 4 - 1 : 0; }
 
 static void text1(int x, int y, const char *t, uint16_t c)
@@ -259,19 +264,25 @@ static void text1(int x, int y, const char *t, uint16_t c)
         uint16_t g = glyph(*t);
         for (int i = 0; i < 15; i++)
             if (g & (0x4000 >> i)) gfx_px(x + i % 3, y + i / 3, c);
+        if (accent(*t)) { gfx_px(x, y - 1, c); gfx_px(x + 2, y - 1, c); }
     }
 }
 
 /* Vergroesserte Schrift: jedes Schriftpixel wird ein Quadrat der Kantenlaenge k, mit Schatten */
 void gfx_text_big(int x, int y, const char *t, uint16_t c, int k)
 {
-    if (y + 6 * k < by0 || y >= by0 + GFX_BAND) return;
+    if (y + 6 * k < by0 || y - k >= by0 + GFX_BAND) return;
     for (int pass = 0; pass < 2; pass++) {
         int ox = pass ? 0 : 1, cx = x;
         for (const char *p = t; *p; p++, cx += 4 * k) {
             uint16_t g = glyph(*p);
             for (int i = 0; i < 15; i++)
                 if (g & (0x4000 >> i)) gfx_fill(cx + (i % 3) * k + ox, y + (i / 3) * k + ox, k, k, pass ? c : RGB(10, 8, 16));
+            if (accent(*p)) {
+                uint16_t sc = pass ? c : RGB(10, 8, 16);
+                gfx_fill(cx + ox, y - k + ox, k, k, sc);
+                gfx_fill(cx + 2 * k + ox, y - k + ox, k, k, sc);
+            }
         }
     }
 }
@@ -279,13 +290,13 @@ void gfx_text_big(int x, int y, const char *t, uint16_t c, int k)
 /* Ohne Schatten - fuer dunkle Schrift auf hellem Grund */
 void gfx_text_plain(int x, int y, const char *t, uint16_t c)
 {
-    if (y + 5 < by0 || y >= by0 + GFX_BAND) return;
+    if (y + 5 < by0 || y - 1 >= by0 + GFX_BAND) return;
     text1(x, y, t, c);
 }
 
 void gfx_text(int x, int y, const char *t, uint16_t c)
 {
-    if (y + 6 < by0 || y >= by0 + GFX_BAND) return;
+    if (y + 6 < by0 || y - 1 >= by0 + GFX_BAND) return;
     text1(x + 1, y + 1, t, RGB(16, 8, 16));
     text1(x, y, t, c);
 }

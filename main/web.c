@@ -395,7 +395,7 @@ static esp_err_t post(httpd_req_t *r) {
   } else if (!strcmp(u, "/api/v1/calendars/check")) {
     cJSON *v = cJSON_GetObjectItemCaseSensitive(j, "slot");
     success = cJSON_IsNumber(v) && v->valuedouble == v->valueint &&
-              v->valueint >= 0 && v->valueint < 3;
+              v->valueint >= 0 && v->valueint < CALENDAR_COUNT;
     if (success)
       calendar_request_check(v->valueint);
   }

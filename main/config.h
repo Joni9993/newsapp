@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include "cJSON.h"
 #define MODULE_COUNT 17
-#define CALENDAR_COUNT 3
+#define CALENDAR_COUNT 6   /* Obergrenze: der NVS-Speicher (24 KB) haelt die Config als ein Blob */
+#define CALENDAR_LEGACY 3  /* aeltere Firmware speicherte nur 3 Kalender */
 #define CAL_URL_MAX 768
 typedef struct { char name[48], provider[12], url[CAL_URL_MAX]; } calendar_config_t;
 typedef struct {
