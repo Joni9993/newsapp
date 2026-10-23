@@ -4,6 +4,7 @@
 #include "modules.h"
 #include "nvs.h"
 #include <ctype.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 static board_config_t current;
@@ -57,10 +58,18 @@ bool config_init(void) {
   nvs_handle_t h;
   if (nvs_open("newsboard", NVS_READONLY, &h) != ESP_OK)
     return true;
+  /* calendars ist das letzte Feld: ein altes Blob mit 3 Kalendern ist ein Anfang des neuen */
   board_config_t saved;
+  memset(&saved, 0, sizeof saved);
   size_t n = sizeof saved;
+  size_t legacy = (offsetof(board_config_t, calendars) +
+                   CALENDAR_LEGACY * sizeof(calendar_config_t) + 3) & ~(size_t)3;   /* sizeof rundet auf 4 auf */
   bool ok = nvs_get_blob(h, "config", &saved, &n) == ESP_OK &&
-            n == sizeof saved && valid(&saved);
+            (n == sizeof saved || n == legacy);
+  if (ok && n == legacy)
+    for (int i = CALENDAR_LEGACY; i < CALENDAR_COUNT; i++)
+      strcpy(saved.calendars[i].provider, "google");
+  ok = ok && valid(&saved);
   if (ok)
     current = saved;
   nvs_close(h);
@@ -185,9 +194,10 @@ bool config_update(const cJSON *j, char *error, size_t size) {
   }
   v = cJSON_GetObjectItemCaseSensitive(j, "calendars");
   if (v) {
-    if (!cJSON_IsArray(v) || cJSON_GetArraySize(v) != CALENDAR_COUNT)
+    int n = cJSON_IsArray(v) ? cJSON_GetArraySize(v) : 0;
+    if (n < 1 || n > CALENDAR_COUNT)
       goto done;
-    for (int i = 0; i < CALENDAR_COUNT; i++) {
+    for (int i = 0; i < n; i++) {   /* die Webseite schickt nur die sichtbaren Plaetze */
       calendar_config_t *k = &c.calendars[i];
       const cJSON *o = cJSON_GetArrayItem(v, i);
       const cJSON *name = cJSON_GetObjectItemCaseSensitive(o, "name"),

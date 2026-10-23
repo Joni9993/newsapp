@@ -19,11 +19,11 @@ static struct {
   time_t updated;
   bool checking;
   char identity[CAL_URL_MAX];
-} cache[3];
+} cache[CALENDAR_COUNT];
 static volatile unsigned check_mask;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 void calendar_request_check(int slot) {
-  if (slot >= 0 && slot < 3)
+  if (slot >= 0 && slot < CALENDAR_COUNT)
     __atomic_fetch_or(&check_mask, 1u << slot, __ATOMIC_RELAXED);
 }
 static bool feed(const char *d, size_t n, void *ctx) {
@@ -100,9 +100,9 @@ static void publish(const board_config_t *cfg) {
     const ical_occurrence_t *e;
     int slot;
   } ref_t;
-  ref_t refs[3 * ICAL_MAX_RESULTS];
+  static ref_t refs[CALENDAR_COUNT * ICAL_MAX_RESULTS];   /* nur der Quellen-Task ruft publish */
   int n = 0;
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < CALENDAR_COUNT; i++)
     if (cfg->calendars[i].url[0] &&
         !strcmp(cache[i].identity, cfg->calendars[i].url))
       for (int j = 0; j < cache[i].count; j++) {
@@ -182,7 +182,7 @@ static void publish(const board_config_t *cfg) {
               RGB(255, 255, 255));
     card_finish(cards);
     bool success = false;
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < CALENDAR_COUNT; i++)
       if (cfg->calendars[i].url[0] && cache[i].updated && !cache[i].error[0])
         success = true;
     if (success)
@@ -194,7 +194,7 @@ static void publish(const board_config_t *cfg) {
 void calendar_fetch(void) {
   board_config_t cfg;
   config_get(&cfg);
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < CALENDAR_COUNT; i++)
     if (cfg.calendars[i].url[0])
       fetch(i, &cfg.calendars[i]);
   config_get(&cfg);
@@ -206,7 +206,7 @@ void calendar_process_check(void) {
     return;
   board_config_t cfg;
   config_get(&cfg);
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < CALENDAR_COUNT; i++)
     if (bits & (1u << i))
       fetch(i, &cfg.calendars[i]);
   config_get(&cfg);
@@ -216,7 +216,7 @@ cJSON *calendar_status(void) {
   cJSON *a = cJSON_CreateArray();
   board_config_t cfg;
   config_get(&cfg);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < CALENDAR_COUNT; i++) {
     char err[100];
     bool checking;
     time_t updated;

@@ -31,10 +31,10 @@ static const char *map(unsigned c)
     case '>': return ">";
     case '_': return "-";
     case 0x2026: return "...";
-    case 0xC4: case 0xE4: return "AE";
-    case 0xD6: case 0xF6: return "OE";
-    case 0xDC: case 0xFC: return "UE";
-    case 0xDF: case 0x1E9E: return "SS";
+    case 0xC4: case 0xE4: return TEXT_AE;
+    case 0xD6: case 0xF6: return TEXT_OE;
+    case 0xDC: case 0xFC: return TEXT_UE;
+    case 0xDF: case 0x1E9E: return TEXT_SZ;
     case 0xC0: case 0xC1: case 0xC2: case 0xC3: case 0xC5: case 0xE0: case 0xE1: case 0xE2: case 0xE3: case 0xE5: return "A";
     case 0xC6: case 0xE6: return "AE";
     case 0xC7: case 0xE7: case 0x10C: case 0x10D: case 0x106: case 0x107: return "C";
