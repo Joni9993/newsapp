@@ -4,7 +4,7 @@
 #include "modules.h"
 #include "nvs.h"
 #include <ctype.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 static board_config_t current;
@@ -12,7 +12,7 @@ static SemaphoreHandle_t lock;
 static uint32_t revision = 1;
 void config_defaults(board_config_t *c) {
   memset(c, 0, sizeof *c);
-  c->version = 1;
+  c->version = 2;
   c->duration = 20;
   c->brightness = 80;
   c->night_brightness = 12;
@@ -27,7 +27,7 @@ void config_defaults(board_config_t *c) {
     strcpy(c->calendars[i].provider, "google");
 }
 static bool valid(const board_config_t *c) {
-  if (c->version != 1 || c->region < 1 || c->region > 16 || c->mode > 1 ||
+  if (c->version != 2 || c->region < 1 || c->region > 16 || c->mode > 1 ||
       c->theme > 1 || c->brightness > 100 || c->night_brightness > 100 ||
       c->night_start > 23 || c->night_end > 23 || c->duration < 5 ||
       c->duration > 120)
@@ -52,23 +52,67 @@ static bool valid(const board_config_t *c) {
   }
   return true;
 }
+/* Speicherformat vor dem neuen Modul: gleiche Felder, aber 17 Module */
+#define OLD_MODULES 17
+#define LEGACY(name, cals)                                                     \
+  typedef struct {                                                             \
+    uint32_t version;                                                          \
+    char ssid[33], password[65], city[64];                                     \
+    uint8_t region, mode, theme, brightness, night_brightness, night_start,    \
+        night_end;                                                             \
+    uint16_t duration;                                                         \
+    bool enabled[OLD_MODULES];                                                 \
+    uint8_t order[OLD_MODULES];                                                \
+    calendar_config_t calendars[cals];                                         \
+  } name
+LEGACY(legacy3_t, 3);
+LEGACY(legacy6_t, 6);
+static void upgrade(board_config_t *c, const legacy3_t *o,
+                    const calendar_config_t *cals, int ncal) {
+  config_defaults(c);
+  memcpy(c->ssid, o->ssid, sizeof c->ssid);
+  memcpy(c->password, o->password, sizeof c->password);
+  memcpy(c->city, o->city, sizeof c->city);
+  c->region = o->region;
+  c->mode = o->mode;
+  c->theme = o->theme;
+  c->brightness = o->brightness;
+  c->night_brightness = o->night_brightness;
+  c->night_start = o->night_start;
+  c->night_end = o->night_end;
+  c->duration = o->duration;
+  memcpy(c->enabled, o->enabled, OLD_MODULES);
+  memcpy(c->order, o->order, OLD_MODULES);
+  c->enabled[OLD_MODULES] = false; /* neue Module hinten, aus */
+  c->order[OLD_MODULES] = OLD_MODULES;
+  memcpy(c->calendars, cals, ncal * sizeof *cals);
+}
 bool config_init(void) {
   lock = xSemaphoreCreateMutex();
   config_defaults(&current);
   nvs_handle_t h;
   if (nvs_open("newsboard", NVS_READONLY, &h) != ESP_OK)
     return true;
-  /* calendars ist das letzte Feld: ein altes Blob mit 3 Kalendern ist ein Anfang des neuen */
+  /* Aeltere Firmware speicherte weniger Module (17) und Kalender (3 bzw. 6) - uebernehmen */
   board_config_t saved;
   memset(&saved, 0, sizeof saved);
-  size_t n = sizeof saved;
-  size_t legacy = (offsetof(board_config_t, calendars) +
-                   CALENDAR_LEGACY * sizeof(calendar_config_t) + 3) & ~(size_t)3;   /* sizeof rundet auf 4 auf */
-  bool ok = nvs_get_blob(h, "config", &saved, &n) == ESP_OK &&
-            (n == sizeof saved || n == legacy);
-  if (ok && n == legacy)
-    for (int i = CALENDAR_LEGACY; i < CALENDAR_COUNT; i++)
-      strcpy(saved.calendars[i].provider, "google");
+  union {
+    board_config_t now;
+    legacy3_t l3;
+    legacy6_t l6;
+  } *buf = calloc(1, sizeof *buf);
+  size_t n = sizeof *buf;
+  bool ok = buf && nvs_get_blob(h, "config", buf, &n) == ESP_OK;
+  /* l6 und now sind gleich gross (Auffuellbytes): die Version unterscheidet sie (alt 1, neu 2) */
+  if (ok && n == sizeof buf->now && buf->now.version == 2)
+    saved = buf->now;
+  else if (ok && n == sizeof buf->l6 && buf->l6.version == 1)
+    upgrade(&saved, (const legacy3_t *)&buf->l6, buf->l6.calendars, 6);
+  else if (ok && n == sizeof buf->l3 && buf->l3.version == 1)
+    upgrade(&saved, &buf->l3, buf->l3.calendars, 3);
+  else
+    ok = false;
+  free(buf);
   ok = ok && valid(&saved);
   if (ok)
     current = saved;

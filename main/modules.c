@@ -20,7 +20,8 @@ const module_t modules[MODULE_COUNT] = {
     {"bitcoin", "Bitcoin", 3600},
     {"exchange", "Euro / US-Dollar", 3600},
     {"calendar", "Meine Termine", 900},
-    {"clock", "Uhrzeit", 60}};
+    {"clock", "Uhrzeit", 60},
+    {"jw", "JW.ORG Nachrichten", 1800}};
 static module_status_t states[MODULE_COUNT];
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 bool module_enabled(int id) {

@@ -1,6 +1,7 @@
 #include "sources.h"
 #include "cards.h"
 #include "json.h"
+#include "rss.h"
 #include "net.h"
 #include "text.h"
 #include "gfx.h"
@@ -284,6 +285,36 @@ static void fetch_news(void)
     n += m.n;
     cards_set(SRC_NEWS, list, n);
     ESP_LOGI(TAG, "Tagesschau: %d top, %d regional, %d weitere", h.ntop, h.nreg, m.n);
+}
+
+/* ---------------------------------------------------------------- JW.ORG Nachrichten (RSS) */
+
+typedef struct { card_t *list; int n, cap; } jw_t;
+
+static bool feed_rss(const char *d, size_t n, void *ctx) { return rss_feed((rss_t *)ctx, d, n); }
+
+static bool jw_cb(const char *title, const char *desc, void *ctx)
+{
+    jw_t *s = ctx;
+    card_t *c = &s->list[s->n++];
+    card_begin(c, CARD_TEXT, SRC_JW, "JW.ORG NACHRICHTEN");
+    card_part(c, title, T_TITLE);
+    card_part(c, desc, T_BODY);
+    strcpy(c->mood, "!");
+    card_finish(c);
+    return s->n < s->cap;
+}
+
+static void fetch_jw(void)
+{
+    static card_t list[6];
+    static rss_t r;
+    jw_t s = { list, 0, 6 };
+    rss_init(&r, jw_cb, &s);
+    int code = source_get("https://www.jw.org/de/nachrichten/rss/FullNewsRSS/feed.xml", feed_rss, &r);
+    /* der Rueckruf bricht nach dem letzten Platz ab: das ist kein Fehler */
+    if (s.n) { cards_set(SRC_JW, list, s.n); fetch_failed = false; }
+    else if (code == 200) fetch_failed = true;
 }
 
 /* ---------------------------------------------------------------- Wikipedia: Ereignisse und Geburtstage */
@@ -591,7 +622,7 @@ static void task(void *arg) {
  switch(m){
  case MOD_NEWS:fetch_news();break;case MOD_WEATHER:fetch_weather();break;
  case MOD_HISTORY:fetch_onthisday("events",SRC_WIKI_HEUTE);break;case MOD_BIRTHDAYS:fetch_onthisday("births",SRC_WIKI_GEBURT);break;
- case MOD_RANDOM:fetch_random_article();break;case MOD_CALENDAR:calendar_fetch();break;case MOD_CLOCK:clock_card();break;
+ case MOD_RANDOM:fetch_random_article();break;case MOD_CALENDAR:calendar_fetch();break;case MOD_CLOCK:clock_card();break;case MOD_JW:fetch_jw();break;
  default:if(m==MOD_SUN&&!weather.valid)fetch_weather();fetch_fact(m);break;
  }
  module_end(m,fetch_failed?"Quelle derzeit nicht erreichbar oder keine gültigen Daten":NULL);

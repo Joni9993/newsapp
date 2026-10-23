@@ -9,8 +9,8 @@
 
 /* Wie viele Karten je Quelle - zusammen etwa 45 KB */
 static const uint8_t CAP[SRC_COUNT] = {1, 16, 1, 8, 4, 4, 1, 1,  1,
-                                       1, 1,  1, 1, 1, 1, 1, 20, 1};
-#define TOTAL 65
+                                       1, 1,  1, 1, 1, 1, 1, 20, 1, 6};
+#define TOTAL 71
 static card_t pool[TOTAL];
 static card_t *slot[SRC_COUNT];
 static uint8_t count[SRC_COUNT], cursor[SRC_COUNT];
