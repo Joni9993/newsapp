@@ -1,0 +1,8 @@
+build/
+build-*/
+sdkconfig
+sdkconfig.old
+main/secrets.h
+__pycache__/
+*.log
+managed_components/

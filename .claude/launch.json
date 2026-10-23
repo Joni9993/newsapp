@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "ui-preview", "runtimeExecutable": "python", "runtimeArgs": ["tools/preview.py"], "port": 8765 }
+  ]
+}

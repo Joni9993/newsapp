@@ -1,0 +1,148 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>newsboard // tty</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head><body>
+<header class="top">
+<span class="prompt"><b>root@newsboard</b>:<i>~</i>$ <span class="cursor">_</span></span>
+<span id="connection" class="tag">[ LINK ]</span>
+</header>
+<main>
+<div id="notice" role="status" aria-live="polite"></div>
+
+<section id="pairing" class="box">
+<pre class="boot" aria-hidden="true">NEWSBOARD BIOS v1.0  //  ESP32-C6 RISC-V @160MHz
+[ OK ] display ........ st7789 320x240
+[ OK ] wlan ........... 2.4GHz b/g/n
+[ -- ] session ........ <span class="warn">not authenticated</span></pre>
+<h2>&gt; auth --pair</h2>
+<p class="dim">1. Code auf dem Board anzeigen &nbsp;2. Sechs Ziffern eingeben &nbsp;3. Enter</p>
+<form id="pairForm" class="line"><button type="button" id="requestCode">show-code</button><label for="code" class="sr">Kopplungscode</label><span class="ps">code&gt;</span><input id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required placeholder="______"><button class="go">enter ⏎</button></form>
+<p class="dim small">// kein konto · keine cloud · config bleibt lokal im flash</p>
+</section>
+
+<div id="workspace" hidden>
+<div class="bar">
+<nav aria-label="Bereiche"><button class="selected" data-tab="modules"><kbd>1</kbd>mods</button><button data-tab="display"><kbd>2</kbd>disp</button><button data-tab="calendars"><kbd>3</kbd>cal</button><button data-tab="wifi"><kbd>4</kbd>net</button><button data-tab="push"><kbd>5</kbd>push</button></nav>
+<div class="player"><span class="dim">play:</span><button data-command="previous" aria-label="Vorherige Karte">&lt;&lt;</button><button id="pause" data-command="pause">pause</button><button data-command="next" aria-label="Nächste Karte">&gt;&gt;</button></div>
+</div>
+
+<section id="modules" class="tab">
+<div class="head"><h2>&gt; modules <span id="moduleCount" class="dim"></span></h2><span class="dim small">[x] an/aus · ↑↓ reihenfolge</span></div>
+<div id="moduleList" class="mods"></div>
+<div class="grid2 env"><label><span>city</span><input id="city" maxlength="63" placeholder="hamburg"></label><label><span>region</span><select id="region"></select></label></div>
+</section>
+
+<section id="display" class="tab" hidden>
+<h2>&gt; display</h2>
+<div class="grid3">
+<label><span>mode</span><select id="mode"><option value="0">posteule (animiert)</option><option value="1">terminal-dashboard</option></select></label>
+<label><span>figur</span><select id="theme"><option value="0">eule / landschaft</option><option value="1">roboter / stadt</option></select></label>
+<label><span>karte_sek <em>5-120</em></span><input id="duration" type="number" min="5" max="120"></label>
+<label><span>hell_% <em>0-100</em></span><input id="brightness" type="number" min="0" max="100"></label>
+<label><span>nacht_% <em>0-100</em></span><input id="night_brightness" type="number" min="0" max="100"></label>
+<div class="pair"><label><span>nacht_von</span><input id="night_start" type="number" min="0" max="23"></label><label><span>bis</span><input id="night_end" type="number" min="0" max="23"></label></div>
+</div>
+<p class="dim small">// von = bis → nachtmodus aus · zeitzone europe/berlin · "figur" nur im posteule-modus</p>
+</section>
+
+<section id="calendars" class="tab" hidden>
+<div class="head"><h2>&gt; calendars</h2><button type="button" id="calHelp" class="link">help google</button></div>
+<pre id="calHowto" class="help" hidden>GOOGLE KALENDER → iCal-LINK
+ 1. calendar.google.com am PC öffnen
+ 2. ⚙ Einstellungen → links deinen Kalender wählen
+ 3. runterscrollen zu "Kalender integrieren"
+ 4. "Privatadresse im iCal-Format" kopieren
+    (sieht aus wie https://calendar.google.com/calendar/ical/…/private-…/basic.ics)
+    NICHT die "Kalender-ID" (…@gmail.com) nehmen!
+ 5. hier einfügen → save → unter mods "Meine Termine" aktivieren
+// der link ist ein schlüssel: wird lokal gespeichert, nie wieder angezeigt.
+// andere anbieter: jeder https/webcal-link im .ics-format.</pre>
+<div id="calendarList" class="cals"></div>
+</section>
+
+<section id="wifi" class="tab" hidden>
+<div class="grid2 net">
+<div>
+<h2>&gt; wlan connect</h2>
+<form id="wifiForm">
+<label><span>ssid</span><input id="ssid" maxlength="32" required autocomplete="off" spellcheck="false"></label>
+<label><span>pass</span><input id="password" type="password" maxlength="63" autocomplete="new-password"></label>
+<div class="line"><button type="button" id="scan">scan</button><button class="go">connect ⏎</button></div>
+</form>
+<div id="networks" class="nets"></div>
+<p id="wifiStatus" class="out"></p>
+</div>
+<div>
+<h2>&gt; sysinfo</h2>
+<dl id="deviceStatus"></dl>
+<pre class="help">SO LÄUFT DER WECHSEL INS HEIMNETZ
+ 1. connect → handy verliert kurz das board-wlan (normal)
+ 2. display zeigt: HTTP://192.168.x.x + code
+ 3. handy zurück in dein heimnetz
+ 4. diese adresse im browser öffnen, code eingeben
+// danach sprechen handy und board über deinen router.
+// das board-wlan schaltet sich nach 2 min ab.</pre>
+<p class="dim small">// nur 2,4 GHz · passwort wird erst nach erfolgreicher verbindung gespeichert<br>// wlan wechseln: BOOT 5 s halten → mit geräte-wlan verbinden (daten am display)</p>
+</div>
+</div>
+</section>
+
+<section id="push" class="tab" hidden>
+<div class="grid2 net">
+<div>
+<h2>&gt; push notifications</h2>
+<div class="grid2">
+<label><span>status</span><select id="pushOn"><option value="1">an</option><option value="0">aus</option></select></label>
+<label><span>anzeigen</span><select id="pushPrivacy"><option value="0">app + absender + text</option><option value="1">app + absender</option><option value="2">nur app</option></select></label>
+</div>
+<label class="pushurl"><span>adresse für die handy-app (geheim halten!)</span><input id="pushUrl" readonly spellcheck="false"></label>
+<div class="line"><button type="button" id="pushTest" class="go">test senden</button><button type="button" id="pushNew">neuer token</button></div>
+<p id="pushStatus" class="out"></p>
+</div>
+<div>
+<h2>&gt; android setup · 2 min</h2>
+<p class="dim small">// öffne diese seite dafür auf dem handy</p>
+<pre class="help steps">1. App "Automate" (LlamaLab) aus dem
+   Play Store installieren – kostenlos
+2. hier unten auf "flow laden" tippen</pre>
+<a id="flowLink" class="btn go" href="/api/v1/notify/flow" download="Newsboard.flo">&gt; flow laden (Newsboard.flo)</a>
+<pre class="help steps">3. Datei öffnen → "Automate" wählen → Import
+   (oder in Automate: ⋮ → Import → Downloads)
+4. Flow "Newsboard" antippen → Start
+   → Benachrichtigungszugriff erlauben
+5. Einstellungen → Apps → Automate → Akku:
+   "Nicht eingeschränkt"
+→ fertig. oben "test senden", dann einfach
+  eine WhatsApp oder SMS schicken lassen.</pre>
+<details class="manual"><summary>flow selbst bauen / nur bestimmte apps</summary>
+<pre class="help">// im block "Notification posted?" bei Package
+// apps wählen, um nur diese weiterzuleiten.
+// oder den flow komplett selbst bauen:
+1. "Automate" von LlamaLab aus dem Play Store
+2. + → neuer Flow. Der Block "Flow beginning"
+   ist schon da.
+3. Block "Notification posted?" hinzufügen:
+   Proceed: When transition
+   Exclude flags: Group summary, Ongoing
+   Package: leer = alle, oder App wählen
+   Output: Package → pkg · Title → title
+           Message → msg
+4. Block "HTTP request" hinzufügen:
+   Request URL: adresse links (mit token)
+   Request method: POST
+   Request content type: application/json
+   Request content body (fx-Knopf):
+   jsonEncode({"app": pkg, "title": title,
+               "text": msg})
+5. Verbinden: Flow beginning → Notification
+   posted? · YES → HTTP request → zurück zu
+   Notification posted? · NO ebenfalls zurück
+6. Speichern, Start. Automate den
+   Benachrichtigungszugriff erlauben und die
+   Akku-Optimierung für Automate ausschalten.
+// handy und board müssen im selben wlan sein.</pre>
+</details>
+</div>
+</div>
+</section>
+
+<footer class="status"><span class="mode">-- NORMAL --</span><span id="saveHint">synced</span><span class="keys dim">1-5 tabs · ctrl+s save</span><button class="go" id="save">:w save</button></footer>
+</div>
+</main></body></html>
