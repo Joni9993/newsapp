@@ -1,0 +1,72 @@
+name: Firmware bauen
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # nur fuer das Release bei Tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Tags fuer die Versionsnummer
+
+      - name: Version bestimmen
+        id: ver
+        run: echo "v=$(git describe --always --tags --dirty --abbrev=7)" >> "$GITHUB_OUTPUT"
+
+      - name: Web-UI auf Syntaxfehler pruefen
+        run: node --check main/app.js
+
+      - name: Bauen (Standard-Display)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32c6
+          command: idf.py -DPROJECT_VER=${{ steps.ver.outputs.v }} build && idf.py size
+
+      - name: Bauen (altes 2"-Panel, legacy)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32c6
+          command: idf.py -B build-legacy -DNEWSBOARD_LEGACY_PANEL=1 -DPROJECT_VER=${{ steps.ver.outputs.v }}-legacy build && idf.py -B build-legacy size
+
+      - name: Komplettes Flash-Image fuer die USB-Erstinstallation (optional)
+        continue-on-error: true
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3
+          target: esp32c6
+          command: idf.py merge-bin -o newsboard-full.bin && idf.py -B build-legacy merge-bin -o newsboard-legacy-full.bin
+
+      - name: Dateien sammeln
+        run: |
+          mkdir dist
+          cp build/nachrichtenbote.bin dist/newsboard.bin
+          cp build-legacy/nachrichtenbote.bin dist/newsboard-legacy.bin
+          [ -f build/newsboard-full.bin ] && cp build/newsboard-full.bin dist/ || true
+          [ -f build-legacy/newsboard-legacy-full.bin ] && cp build-legacy/newsboard-legacy-full.bin dist/ || true
+          ls -l dist
+          echo "Partitionsgroesse: 1966080 Bytes (0x1E0000)"
+          stat -c '%n %s Bytes' dist/newsboard.bin dist/newsboard-legacy.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: newsboard-firmware
+          path: dist/*.bin
+          if-no-files-found: error
+
+      - name: Release erstellen
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.bin
+          generate_release_notes: true

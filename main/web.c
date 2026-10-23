@@ -10,6 +10,8 @@
 #include "notify.h"
 #include "automate_flow.h"
 #include "nvs.h"
+#include "ota.h"
+#include "esp_app_desc.h"
 #include "screen.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -291,6 +293,8 @@ static esp_err_t get(httpd_req_t *r) {
     return json(r, modules_public());
   if (!strcmp(u, "/api/v1/status")) {
     cJSON *o = net_status();
+    cJSON_AddStringToObject(o, "version", esp_app_get_description()->version);
+    cJSON_AddStringToObject(o, "partition", ota_partition_label());
     cJSON_AddBoolToObject(o, "paused", screen_paused());
     cJSON_AddNumberToObject(o, "heap", esp_get_free_heap_size());
     cJSON_AddNumberToObject(o, "minHeap", esp_get_minimum_free_heap_size());
@@ -359,6 +363,9 @@ static esp_err_t post(httpd_req_t *r) {
   }
   if (!authorized(r))
     return error(r, "401 Unauthorized", "Bitte erneut koppeln");
+  /* Firmware-Upload streamt den Body selbst: vor body() (max. 8 KB) abfangen */
+  if (!strcmp(u, "/api/v1/ota"))
+    return ota_upload(r);
   if (!strcmp(u, "/api/v1/wifi/scan"))
     return json(r, net_scan());
   cJSON *j = body(r);
@@ -404,7 +411,7 @@ static esp_err_t post(httpd_req_t *r) {
                  : error(r, "400 Bad Request",
                          message[0] ? message : "Ungültige Anfrage");
 }
-void web_start(void) {
+bool web_start(void) {
   notify_init();
   nvs_handle_t h;
   if (nvs_open("newsboard", NVS_READONLY, &h) == ESP_OK) {
@@ -426,9 +433,10 @@ void web_start(void) {
   cfg.recv_wait_timeout = 5;
   cfg.send_wait_timeout = 5;
   if (httpd_start(&server, &cfg) != ESP_OK)
-    return;
+    return false;
   httpd_uri_t g = {.uri = "/*", .method = HTTP_GET, .handler = get},
               p = {.uri = "/*", .method = HTTP_POST, .handler = post};
   httpd_register_uri_handler(server, &g);
   httpd_register_uri_handler(server, &p);
+  return true;
 }
