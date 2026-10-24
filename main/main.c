@@ -7,10 +7,11 @@
 #include "freertos/task.h"
 #include "lcd.h"
 #include "net.h"
+#include "ota.h"
 #include "nvs_flash.h"
 #include "screen.h"
 #include "sources.h"
-void web_start(void);
+bool web_start(void);
 void app_main(void) {
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
@@ -28,7 +29,10 @@ void app_main(void) {
   net_start();
   sources_start();
   screen_init();
-  web_start();
+  /* Erst wenn der Webserver laeuft, gilt ein frisch aktualisiertes Image als
+   * gut; sonst Rollback auf die alte Firmware beim naechsten Neustart. */
+  if (web_start())
+    ota_mark_valid();
   gpio_config_t g = {.pin_bit_mask = 1ULL << 9,
                      .mode = GPIO_MODE_INPUT,
                      .pull_up_en = GPIO_PULLUP_ENABLE};

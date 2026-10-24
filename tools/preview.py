@@ -19,9 +19,13 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.endswith('/notify/config'):return self.send_json(push)
         if self.path.endswith('/config'):return self.send_json(cfg)
         if self.path.endswith('/modules'):return self.send_json(catalog)
-        if self.path.endswith('/status'):return self.send_json(dict(connected=False,setup=True,connecting=False,ip='192.168.4.1',error='',paused=False,heap=160000,minHeap=150000,uptime=130,timeValid=False,calendars=[dict(slot=i,error='',checking=False,updated=0) for i in range(6)]))
+        if self.path.endswith('/status'):return self.send_json(dict(version='v0.0-preview',partition='ota_0',connected=False,setup=True,connecting=False,ip='192.168.4.1',error='',paused=False,heap=160000,minHeap=150000,uptime=130,timeValid=False,calendars=[dict(slot=i,error='',checking=False,updated=0) for i in range(6)]))
         self.send_json({'error':'Unknown'},404)
     def do_POST(self):
+        if self.path.endswith('/api/v1/ota'):
+            n=int(self.headers.get('Content-Length','0'));
+            while n>0:n-=len(self.rfile.read(min(n,65536)))
+            return self.send_json({'ok':True})
         j=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}')
         if self.path.endswith('/pair/request'):return self.send_json({'ok':True})
         if self.path.endswith('/pair'):return self.send_json({'ok':True} if j.get('code')=='123456' else {'error':'Code falsch'},200 if j.get('code')=='123456' else 401,cookie=j.get('code')=='123456')

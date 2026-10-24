@@ -57,10 +57,12 @@ main/            Firmware (C, ESP-IDF-Komponente)
   ical.c, calendar.c              iCal-Parser und Kalender-Modul
   rss.c          RSS/Atom-Leser (JW.ORG-Nachrichten)
   notify.c       Push-Nachrichten
+  ota.c          Firmware-Update per Upload (OTA) + Rollback
   config.c       Einstellungen (im NVS gespeichert)
 tests/           Host-Tests für den iCal-Parser (Python + ctypes)
 tools/           Build-Skript, serieller Monitor, UI-Vorschau
-partitions.csv   Partitionstabelle (3 MB App)
+partitions.csv   Partitionstabelle (2 × 1,875 MB OTA-App)
+.github/         CI: baut die Firmware (.bin) bei jedem Push
 sdkconfig.defaults
 ```
 
@@ -117,7 +119,7 @@ idf.py -B build-test -DNEWSBOARD_DISPLAY_TEST=1 build
    Helligkeit einstellen und speichern.
 
 Alle Einstellungen liegen im NVS-Flash und bleiben auch nach einem Update
-erhalten.
+erhalten (siehe [Update über WLAN](#update-über-wlan-ota)).
 
 ### Kalender
 
@@ -140,6 +142,41 @@ Content-Type: application/json
 Die Felder `app`, `title`, `text` und `token` dürfen auch als Query-Parameter
 oder Formulardaten kommen. Für **LlamaLab Automate** kann die Weboberfläche
 einen fertigen Flow herunterladen, in dem IP und Token schon eingetragen sind.
+
+## Update über WLAN (OTA)
+
+Neue Firmware lässt sich ohne Kabel einspielen. Das Board holt sich nichts aus
+dem Internet (das GitHub-Repo ist privat), sondern bekommt die `.bin` per
+Upload in der Weboberfläche. Gebaut wird sie automatisch von GitHub Actions –
+lokal ist keine ESP-IDF nötig.
+
+**Einmalig per USB:** Die Partitionstabelle hat sich geändert (zwei
+OTA-Partitionen statt einer großen App-Partition). Deshalb muss das Board
+einmal per USB geflasht werden (`idf.py flash` oder die `…-full.bin` aus dem
+Build ab Adresse 0). Die Einstellungen bleiben dabei erhalten: der NVS-Bereich
+liegt unverändert an `0x9000`. Danach geht alles über WLAN.
+
+**Update einspielen:**
+
+1. Auf GitHub unter **Actions** (Artifact `newsboard-firmware`) oder
+   **Releases** die Datei **`newsboard.bin`** herunterladen. Für das alte
+   2″-Panel stattdessen **`newsboard-legacy.bin`**.
+2. Weboberfläche des Boards öffnen → Tab **fw** (Firmware).
+3. Datei wählen → **Update installieren** → bestätigen.
+4. Der Fortschrittsbalken läuft, das Board startet neu (ca. 30 s) und die
+   Seite zeigt die neue Version an.
+
+Es werden nur Images mit passendem Projektnamen akzeptiert. Die Firmware wird
+beim Hochladen auf Größe und Prüfsumme kontrolliert.
+
+**Rollback:** Eine neu installierte Firmware muss sich nach dem Start selbst
+bestätigen (sobald der Webserver läuft). Startet sie nicht oder stürzt vorher
+ab, schaltet der Bootloader beim nächsten Neustart automatisch auf die alte
+Version zurück.
+
+**Versionen:** Die Version stammt aus `git describe` (z. B. `v1.2.0` oder
+`v1.2.0-5-gabc1234`). Ein Release mit beiden Dateien entsteht automatisch beim
+Pushen eines Tags `v*`.
 
 ## Entwicklung
 

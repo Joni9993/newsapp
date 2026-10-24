@@ -93,6 +93,8 @@ dd{margin:0;overflow-wrap:anywhere}
 .status #saveHint{flex:1}
 .status.dirty #saveHint{color:var(--warn)}
 .status button{min-height:28px;padding:2px 12px}
+#fwFile{padding:4px 6px}#fwFile::file-selector-button{font:inherit;color:var(--hi);background:#000;border:1px solid var(--hi);padding:3px 8px;margin-right:10px;cursor:pointer}
+progress{display:block;width:100%;height:14px;margin:10px 0 0;appearance:none;border:1px solid var(--line);background:#000;accent-color:var(--hi)}progress::-webkit-progress-bar{background:#000}progress::-webkit-progress-value{background:var(--hi)}progress::-moz-progress-bar{background:var(--hi)}
 [hidden]{display:none!important}
 @media(max-width:760px){.grid3{grid-template-columns:1fr 1fr}.cal{grid-template-columns:24px 1fr 1fr}.cal .url{grid-column:2/-1}.status .keys{display:none}}
 @media(max-width:560px){.grid2,.grid3{grid-template-columns:1fr}.mods{grid-template-columns:1fr}.top .prompt{font-size:12px}.player .dim{display:none}.bar{flex-direction:column;align-items:stretch}.player{justify-content:flex-end}}
