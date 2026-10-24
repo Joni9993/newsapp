@@ -13,7 +13,7 @@
 #include <string.h>
 #include <time.h>
 static struct {
-  ical_occurrence_t items[ICAL_MAX_RESULTS];
+  ical_occurrence_t *items;   /* auf dem Heap, nur so gross wie noetig: 6 feste Listen waeren ~30 KB */
   int count;
   char error[100];
   time_t updated;
@@ -34,7 +34,8 @@ static void fetch(int i, const calendar_config_t *cfg) {
   cache[i].checking = true;
   portEXIT_CRITICAL(&mux);
   if (strcmp(cache[i].identity, cfg->url)) {
-    memset(cache[i].items, 0, sizeof cache[i].items);
+    free(cache[i].items);
+    cache[i].items = NULL;
     cache[i].count = 0;
     cache[i].updated = 0;
     snprintf(cache[i].identity, sizeof cache[i].identity, "%s", cfg->url);
@@ -77,17 +78,23 @@ static void fetch(int i, const calendar_config_t *cfg) {
   }
   /* A URL removed/replaced during the request must never publish old private
    * data. */
-  board_config_t latest;
-  config_get(&latest);
-  if (strcmp(latest.calendars[i].url, cfg->url)) {
+  calendar_config_t latest;
+  config_calendar(i, &latest);
+  if (strcmp(latest.url, cfg->url)) {
     free(items);
     return;
   }
   if (!error[0]) {
-    memcpy(cache[i].items, items, count * sizeof *items);
+    ical_occurrence_t *fit = count ? realloc(items, count * sizeof *items) : NULL;
+    if (count && !fit)
+      fit = items;
+    else if (!count)
+      free(items);
+    free(cache[i].items);
+    cache[i].items = fit;
     cache[i].count = count;
-  }
-  free(items);
+  } else
+    free(items);
   portENTER_CRITICAL(&mux);
   cache[i].checking = false;
   snprintf(cache[i].error, sizeof cache[i].error, "%s", error);
@@ -95,7 +102,13 @@ static void fetch(int i, const calendar_config_t *cfg) {
     cache[i].updated = time(NULL);
   portEXIT_CRITICAL(&mux);
 }
-static void publish(const board_config_t *cfg) {
+/* Kalender i ist hinterlegt und der Zwischenspeicher gehoert zu genau diesem Link */
+static bool current_slot(int i, bool same_url) {
+  calendar_config_t k;
+  config_calendar(i, &k);
+  return k.url[0] && (!same_url || !strcmp(cache[i].identity, k.url));
+}
+static void publish(void) {
   typedef struct {
     const ical_occurrence_t *e;
     int slot;
@@ -103,8 +116,7 @@ static void publish(const board_config_t *cfg) {
   static ref_t refs[CALENDAR_COUNT * ICAL_MAX_RESULTS];   /* nur der Quellen-Task ruft publish */
   int n = 0;
   for (int i = 0; i < CALENDAR_COUNT; i++)
-    if (cfg->calendars[i].url[0] &&
-        !strcmp(cache[i].identity, cfg->calendars[i].url))
+    if (current_slot(i, true))
       for (int j = 0; j < cache[i].count; j++) {
         const ical_occurrence_t *e = &cache[i].items[j];
         if (e->end < time(NULL) && e->start < time(NULL))
@@ -183,7 +195,7 @@ static void publish(const board_config_t *cfg) {
     card_finish(cards);
     bool success = false;
     for (int i = 0; i < CALENDAR_COUNT; i++)
-      if (cfg->calendars[i].url[0] && cache[i].updated && !cache[i].error[0])
+      if (current_slot(i, false) && cache[i].updated && !cache[i].error[0])
         success = true;
     if (success)
       count = 1;
@@ -192,31 +204,36 @@ static void publish(const board_config_t *cfg) {
   free(cards);
 }
 void calendar_fetch(void) {
-  board_config_t cfg;
-  config_get(&cfg);
-  for (int i = 0; i < CALENDAR_COUNT; i++)
-    if (cfg.calendars[i].url[0])
-      fetch(i, &cfg.calendars[i]);
-  config_get(&cfg);
-  publish(&cfg);
+  calendar_config_t k;   /* je Kalender kopieren: die ganze Config (~5 KB) sprengt den Stack */
+  for (int i = 0; i < CALENDAR_COUNT; i++) {
+    config_calendar(i, &k);
+    if (k.url[0])
+      fetch(i, &k);
+    else if (cache[i].items) {   /* entfernter Kalender: Speicher freigeben */
+      free(cache[i].items);
+      cache[i].items = NULL;
+      cache[i].count = 0;
+      cache[i].identity[0] = 0;
+    }
+  }
+  publish();
 }
 void calendar_process_check(void) {
   unsigned bits = __atomic_exchange_n(&check_mask, 0, __ATOMIC_RELAXED);
   if (!bits)
     return;
-  board_config_t cfg;
-  config_get(&cfg);
+  calendar_config_t k;
   for (int i = 0; i < CALENDAR_COUNT; i++)
-    if (bits & (1u << i))
-      fetch(i, &cfg.calendars[i]);
-  config_get(&cfg);
-  publish(&cfg);
+    if (bits & (1u << i)) {
+      config_calendar(i, &k);
+      fetch(i, &k);
+    }
+  publish();
 }
 cJSON *calendar_status(void) {
   cJSON *a = cJSON_CreateArray();
-  board_config_t cfg;
-  config_get(&cfg);
   for (int i = 0; i < CALENDAR_COUNT; i++) {
+    bool set = current_slot(i, false);
     char err[100];
     bool checking;
     time_t updated;
@@ -227,13 +244,13 @@ cJSON *calendar_status(void) {
     portEXIT_CRITICAL(&mux);
     cJSON *o = cJSON_CreateObject();
     cJSON_AddNumberToObject(o, "slot", i);
-    cJSON_AddStringToObject(o, "error", cfg.calendars[i].url[0] ? err : "");
+    cJSON_AddStringToObject(o, "error", set ? err : "");
     cJSON_AddBoolToObject(
         o, "checking",
         checking ||
             (__atomic_load_n(&check_mask, __ATOMIC_RELAXED) & (1u << i)));
     cJSON_AddNumberToObject(o, "updated",
-                            cfg.calendars[i].url[0] ? updated : 0);
+                            set ? updated : 0);
     cJSON_AddItemToArray(a, o);
   }
   return a;

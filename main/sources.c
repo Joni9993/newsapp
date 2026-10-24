@@ -87,13 +87,13 @@ static bool geo_cb(const char *k, const char *v, int depth, void *ctx)
 
 static bool fetch_location(void)
 {
- board_config_t cfg;config_get(&cfg);region_id=cfg.region;snprintf(state_code,sizeof state_code,"%s",STATES[region_id-1].code);
- city[0]=0;if(!cfg.city[0])return false;
+ char wanted[64];uint8_t region;config_location(wanted,sizeof wanted,&region);region_id=region;snprintf(state_code,sizeof state_code,"%s",STATES[region_id-1].code);
+ city[0]=0;if(!wanted[0])return false;
  char url[360],q[192];size_t o=0;
- for(const unsigned char *p=(const unsigned char*)cfg.city;*p && o+4<sizeof q;p++) { if((*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9'))q[o++]=*p;else{o+=snprintf(q+o,sizeof q-o,"%%%02X",*p);} }q[o]=0;
+ for(const unsigned char *p=(const unsigned char*)wanted;*p && o+4<sizeof q;p++) { if((*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9'))q[o++]=*p;else{o+=snprintf(q+o,sizeof q-o,"%%%02X",*p);} }q[o]=0;
  snprintf(url,sizeof url,"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=1&language=de&countryCode=DE",q);
  int depth=3;json_t j;json_init(&j,geo_cb,&depth);int code=source_get(url,feed_json,&j);
- region_id=cfg.region;for(size_t i=0;i<sizeof STATES/sizeof *STATES;i++)if(STATES[i].region==region_id)snprintf(state_code,sizeof state_code,"%s",STATES[i].code);
+ region_id=region;for(size_t i=0;i<sizeof STATES/sizeof *STATES;i++)if(STATES[i].region==region_id)snprintf(state_code,sizeof state_code,"%s",STATES[i].code);
  return code==200&&city[0];
 }
 
@@ -307,14 +307,18 @@ static bool jw_cb(const char *title, const char *desc, void *ctx)
 
 static void fetch_jw(void)
 {
-    static card_t list[6];
-    static rss_t r;
+    /* nur waehrend des Abrufs (~7 KB): dauerhaft fehlt das TLS fuer seine 16-KB-Puffer */
+    card_t *list = calloc(6, sizeof *list);
+    rss_t *r = malloc(sizeof *r);
+    if (!list || !r) { free(list); free(r); fetch_failed = true; return; }
     jw_t s = { list, 0, 6 };
-    rss_init(&r, jw_cb, &s);
-    int code = source_get("https://www.jw.org/de/nachrichten/rss/FullNewsRSS/feed.xml", feed_rss, &r);
+    rss_init(r, jw_cb, &s);
+    int code = source_get("https://www.jw.org/de/nachrichten/rss/FullNewsRSS/feed.xml", feed_rss, r);
     /* der Rueckruf bricht nach dem letzten Platz ab: das ist kein Fehler */
     if (s.n) { cards_set(SRC_JW, list, s.n); fetch_failed = false; }
     else if (code == 200) fetch_failed = true;
+    free(list);
+    free(r);
 }
 
 /* ---------------------------------------------------------------- Wikipedia: Ereignisse und Geburtstage */
@@ -606,11 +610,11 @@ static void clock_card(void){
 static void task(void *arg) {
  uint32_t rev=0;int64_t due[MODULE_COUNT]={0};bool location=false;char last_city[64]="";
  for(;;){
- calendar_process_check();board_config_t cfg;config_get(&cfg);uint32_t nowrev=config_revision();
- if(rev!=nowrev){memset(due,0,sizeof due);rev=nowrev;if(strcmp(last_city,cfg.city)){location=false;weather.valid=false;snprintf(last_city,sizeof last_city,"%s",cfg.city);}}
+ calendar_process_check();char cfg_city[64];uint8_t cfg_region;config_location(cfg_city,sizeof cfg_city,&cfg_region);uint32_t nowrev=config_revision();
+ if(rev!=nowrev){memset(due,0,sizeof due);rev=nowrev;if(strcmp(last_city,cfg_city)){location=false;weather.valid=false;snprintf(last_city,sizeof last_city,"%s",cfg_city);}}
  for(int order=0;order<MODULE_COUNT;order++){
- int m=cfg.order[order];int64_t now=esp_timer_get_time()/1000000;
- if(!cfg.enabled[m]||now<due[m])continue;
+ int m=config_order(order);int64_t now=esp_timer_get_time()/1000000;
+ if(!config_enabled(m)||now<due[m])continue;
  if(!net_time_valid()){module_end(m,"Warte auf WLAN und Uhrzeit");continue;}
  bool local=m==MOD_MOON||m==MOD_DATE||m==MOD_CLOCK;
  if(!local&&!net_connected()){module_end(m,"WLAN nicht verbunden; letzte Daten bleiben sichtbar");continue;}
@@ -618,7 +622,7 @@ static void task(void *arg) {
  bool needs_location=m==MOD_WEATHER||m==MOD_AIR||m==MOD_SUN;
  if(needs_location&&!location)location=fetch_location();
  if(needs_location&&!location){module_end(m,"Ort fehlt oder wurde nicht gefunden");due[m]=now+120;continue;}
- region_id=cfg.region;for(size_t k=0;k<sizeof STATES/sizeof *STATES;k++)if(STATES[k].region==region_id)snprintf(state_code,sizeof state_code,"%s",STATES[k].code);
+ region_id=cfg_region;for(size_t k=0;k<sizeof STATES/sizeof *STATES;k++)if(STATES[k].region==region_id)snprintf(state_code,sizeof state_code,"%s",STATES[k].code);
  switch(m){
  case MOD_NEWS:fetch_news();break;case MOD_WEATHER:fetch_weather();break;
  case MOD_HISTORY:fetch_onthisday("events",SRC_WIKI_HEUTE);break;case MOD_BIRTHDAYS:fetch_onthisday("births",SRC_WIKI_GEBURT);break;

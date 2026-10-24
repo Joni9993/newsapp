@@ -25,9 +25,7 @@ const module_t modules[MODULE_COUNT] = {
 static module_status_t states[MODULE_COUNT];
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 bool module_enabled(int id) {
-  board_config_t c;
-  config_get(&c);
-  return id >= 0 && id < MODULE_COUNT && c.enabled[id];
+  return config_enabled(id);
 }
 void module_begin(int id) {
   portENTER_CRITICAL(&mux);

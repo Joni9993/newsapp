@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "cJSON.h"
 #define MODULE_COUNT 18
@@ -17,6 +18,14 @@ typedef struct {
 } board_config_t;
 bool config_init(void);
 void config_get(board_config_t *out);
+/* Einzelwerte ohne Kopie: die ganze Config ist mit 6 Kalendern ~5 KB, zu viel fuer kleine Stacks */
+bool config_enabled(int module);
+int config_order(int pos);
+uint16_t config_duration(void);
+bool config_has_ssid(void);
+void config_credentials(char ssid[33], char password[65]);
+void config_calendar(int slot, calendar_config_t *out);
+void config_location(char *city, size_t size, uint8_t *region);
 uint32_t config_revision(void);
 cJSON *config_public(void);
 bool config_update(const cJSON *json, char *error, size_t size);

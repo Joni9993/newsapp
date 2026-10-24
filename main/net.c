@@ -32,9 +32,7 @@ bool net_connected(void) { return connected; }
 bool net_time_valid(void) { return time(NULL) > 1700000000; }
 bool net_setup_active(void) { return ap_active; }
 bool net_configured(void) {
-  board_config_t c;
-  config_get(&c);
-  return c.ssid[0] != 0;
+  return config_has_ssid();
 }
 const char *net_ap_name(void) { return ap_name; }
 const char *net_ap_password(void) { return ap_pass; }
@@ -157,10 +155,11 @@ static void maintain(void *arg) {
       snprintf(error, sizeof error, "Fehlgeschlagen (Code %u): %s", last_reason,
                reason_text(last_reason));
       memset(pending_pass, 0, sizeof pending_pass);
-      board_config_t c;
-      config_get(&c);
+      char ssid[33], pass[65];
+      config_credentials(ssid, pass);
       esp_wifi_disconnect();
-      station_config(c.ssid, c.password);
+      station_config(ssid, pass);
+      memset(pass, 0, sizeof pass);
     }
     if (!connected && now >= next_retry && (trying || net_configured())) {
       esp_wifi_connect();

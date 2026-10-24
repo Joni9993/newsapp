@@ -124,6 +124,47 @@ void config_get(board_config_t *out) {
   *out = current;
   xSemaphoreGive(lock);
 }
+bool config_enabled(int module) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  bool on = module >= 0 && module < MODULE_COUNT && current.enabled[module];
+  xSemaphoreGive(lock);
+  return on;
+}
+int config_order(int pos) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  int m = current.order[pos];
+  xSemaphoreGive(lock);
+  return m;
+}
+uint16_t config_duration(void) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  uint16_t d = current.duration;
+  xSemaphoreGive(lock);
+  return d;
+}
+void config_calendar(int slot, calendar_config_t *out) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  *out = current.calendars[slot];
+  xSemaphoreGive(lock);
+}
+void config_location(char *city, size_t size, uint8_t *region) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  snprintf(city, size, "%s", current.city);
+  *region = current.region;
+  xSemaphoreGive(lock);
+}
+void config_credentials(char ssid[33], char password[65]) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  memcpy(ssid, current.ssid, sizeof current.ssid);
+  memcpy(password, current.password, sizeof current.password);
+  xSemaphoreGive(lock);
+}
+bool config_has_ssid(void) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  bool set = current.ssid[0] != 0;
+  xSemaphoreGive(lock);
+  return set;
+}
 uint32_t config_revision(void) {
   return __atomic_load_n(&revision, __ATOMIC_RELAXED);
 }

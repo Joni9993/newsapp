@@ -58,11 +58,12 @@ void cards_previous(void) {
 }
 void cards_replay(void) { replay = true; }
 void cards_filter(void) {
-  board_config_t cfg;
-  config_get(&cfg);
+  bool enabled[MODULE_COUNT];
+  for (int i = 0; i < MODULE_COUNT; i++)
+    enabled[i] = config_enabled(i);
   xSemaphoreTake(mtx, portMAX_DELAY);
   for (int i = 1; i < SRC_COUNT; i++)
-    if (!cfg.enabled[i - 1])
+    if (!enabled[i - 1])
       count[i] = 0;
   history_count = 0;
   history_pos = -1;
@@ -80,15 +81,13 @@ bool cards_next(card_t *out) {
     *out = history[++history_pos];
     return true;
   }
-  board_config_t cfg;
-  config_get(&cfg);
   bool ok = false;
   xSemaphoreTake(mtx, portMAX_DELAY);
   for (int i = 0; i < MODULE_COUNT; i++) {
-    int m = cfg.order[plan_pos];
+    int m = config_order(plan_pos);
     plan_pos = (plan_pos + 1) % MODULE_COUNT;
     int src = m + 1;
-    if (!cfg.enabled[m] || !count[src])
+    if (!config_enabled(m) || !count[src])
       continue;
     *out = slot[src][cursor[src] % count[src]];
     cursor[src] = (cursor[src] + 1) % count[src];

@@ -185,7 +185,7 @@ static void refill(void)
     snprintf(pending_mood, sizeof pending_mood, "%s", c.mood);
 }
 
-static int read_time(const block_t *b) { board_config_t c; config_get(&c); return (READ_BASE_T + (int)(strlen(b->l.txt) * READ_CHAR_T)) * c.duration / 20; }
+static int read_time(const block_t *b) { return (READ_BASE_T + (int)(strlen(b->l.txt) * READ_CHAR_T)) * config_duration() / 20; }
 
 /* ---------------------------------------------------------------- Ablauf */
 
