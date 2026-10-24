@@ -352,6 +352,12 @@ static int resolve_url(const char *url, char *out, size_t n) {
         status = -2;
         break;
       }
+      /* Ziel liegt auf einem anderen Host (signierte Download-Adresse): dort
+       * nicht nachfragen, HEAD liefert da 401 - die Adresse selbst reicht */
+      if (strncmp(out, "https://github.com/", 19)) {
+        status = 200;
+        break;
+      }
       esp_http_client_close(c);
       continue;
     }
