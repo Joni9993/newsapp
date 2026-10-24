@@ -20,7 +20,7 @@ typedef struct {
   ota_state_t state;
   int progress; /* 0..100 */
   char latest[24];
-  char error[96];
+  char error[128];
 } ota_online_t;
 void ota_online_status(ota_online_t *out);
 /* Fragt GitHub (blockiert einige s). ESP_OK: ota_online_status().latest gesetzt */

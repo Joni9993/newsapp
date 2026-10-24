@@ -320,38 +320,123 @@ bool ota_online_up_to_date(const char *tag) {
   return !strcmp(cur, tag);
 }
 
+/* Weiterleitungen selbst aufloesen (GitHub -> anderer Host), liefert Endziel in out.
+ * Rueckgabe: 200 ok, sonst HTTP-Status oder -1 (Fehler), -2 (kein https), -3 (kein Speicher) */
+static int resolve_url(const char *url, char *out, size_t n) {
+  esp_http_client_config_t cfg = {.url = url,
+                                  .user_agent = "newsboard",
+                                  .crt_bundle_attach = esp_crt_bundle_attach,
+                                  .disable_auto_redirect = true,
+                                  .method = HTTP_METHOD_HEAD,
+                                  .buffer_size = 2048,
+                                  .buffer_size_tx = 2048,
+                                  .timeout_ms = 15000};
+  esp_http_client_handle_t c = esp_http_client_init(&cfg);
+  if (!c)
+    return -3;
+  int status = -1;
+  for (int hop = 0; hop < 4; hop++) {
+    if (esp_http_client_open(c, 0) != ESP_OK) {
+      status = -1;
+      break;
+    }
+    esp_http_client_fetch_headers(c);
+    status = esp_http_client_get_status_code(c);
+    if (status >= 300 && status < 400) {
+      if (esp_http_client_set_redirection(c) != ESP_OK) {
+        status = -1;
+        break;
+      }
+      esp_http_client_get_url(c, out, n);
+      if (strncmp(out, "https://", 8)) {
+        status = -2;
+        break;
+      }
+      /* Ziel liegt auf einem anderen Host (signierte Download-Adresse): dort
+       * nicht nachfragen, HEAD liefert da 401 - die Adresse selbst reicht */
+      if (strncmp(out, "https://github.com/", 19)) {
+        status = 200;
+        break;
+      }
+      esp_http_client_close(c);
+      continue;
+    }
+    if (status == 200 && hop == 0)
+      snprintf(out, n, "%s", url); /* sonst steht das Ziel schon in out */
+    break;
+  }
+  esp_http_client_close(c);
+  esp_http_client_cleanup(c);
+  return status;
+}
+
 static void online_task(void *arg) {
-  char url[160], tag[sizeof st.latest];
+  char url[160], tag[sizeof st.latest], msg[sizeof st.error];
   lk();
   snprintf(tag, sizeof tag, "%s", st.latest);
   ul();
   snprintf(url, sizeof url,
            "https://github.com/" OTA_REPO "/releases/download/%s/" OTA_ASSET,
            tag);
-  esp_http_client_config_t hc = {.url = url,
+  ESP_LOGI(TAG, "Online-Update %s, Heap %u", tag,
+           (unsigned)esp_get_free_heap_size());
+  char *final_url = malloc(1536);
+  if (!final_url) {
+    set_err("Speicher voll");
+    vTaskDelete(NULL);
+    return;
+  }
+  int rs = resolve_url(url, final_url, 1536);
+  if (rs != 200) {
+    ESP_LOGW(TAG, "resolve: %d, Heap %u", rs, (unsigned)esp_get_free_heap_size());
+    if (rs > 0)
+      snprintf(msg, sizeof msg, "GitHub-Weiterleitung fehlgeschlagen (HTTP %d)", rs);
+    else
+      snprintf(msg, sizeof msg, "GitHub-Weiterleitung fehlgeschlagen (%s)",
+               rs == -2 ? "kein https" : rs == -3 ? "Speicher voll" : "Verbindung");
+    free(final_url);
+    set_err(msg);
+    vTaskDelete(NULL);
+    return;
+  }
+  esp_http_client_config_t hc = {.url = final_url,
                                  .user_agent = "newsboard",
                                  .crt_bundle_attach = esp_crt_bundle_attach,
-                                 .max_redirection_count = 5,
+                                 .max_redirection_count = 2,
                                  .buffer_size = 4096,
                                  .buffer_size_tx = 2048,
                                  .timeout_ms = 15000,
-                                 .keep_alive_enable = true};
+                                 .keep_alive_enable = false};
   esp_https_ota_config_t oc = {.http_config = &hc};
   esp_https_ota_handle_t h = NULL;
-  ESP_LOGI(TAG, "Online-Update %s, Heap %u", tag,
-           (unsigned)esp_get_free_heap_size());
   esp_err_t e = esp_https_ota_begin(&oc, &h);
+  free(final_url); /* begin kopiert die URL */
   if (e != ESP_OK) {
-    ESP_LOGW(TAG, "begin: %s", esp_err_to_name(e));
-    set_err(e == ESP_ERR_NO_MEM ? "Speicher voll"
-                                : "Download nicht möglich (Release ohne passende Datei?)");
+    ESP_LOGW(TAG, "begin: %s, Heap %u", esp_err_to_name(e),
+             (unsigned)esp_get_free_heap_size());
+    if (e == ESP_ERR_NO_MEM) {
+      set_err("Speicher voll");
+    } else {
+      snprintf(msg, sizeof msg, "Download konnte nicht starten (%s)", esp_err_to_name(e));
+      set_err(msg);
+    }
     vTaskDelete(NULL);
     return;
   }
   esp_app_desc_t desc;
-  if (esp_https_ota_get_img_desc(h, &desc) != ESP_OK ||
-      strncmp(desc.project_name, esp_app_get_description()->project_name,
+  e = esp_https_ota_get_img_desc(h, &desc);
+  if (e != ESP_OK) {
+    ESP_LOGW(TAG, "img_desc: %s, Heap %u", esp_err_to_name(e),
+             (unsigned)esp_get_free_heap_size());
+    esp_https_ota_abort(h);
+    snprintf(msg, sizeof msg, "Anfang der Firmware nicht lesbar (%s)", esp_err_to_name(e));
+    set_err(msg);
+    vTaskDelete(NULL);
+    return;
+  }
+  if (strncmp(desc.project_name, esp_app_get_description()->project_name,
               sizeof desc.project_name)) {
+    ESP_LOGW(TAG, "Projekt '%.32s' passt nicht", desc.project_name);
     esp_https_ota_abort(h);
     set_err("Falsche Firmware: gehört nicht zum Nachrichtenbote");
     vTaskDelete(NULL);
