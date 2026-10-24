@@ -69,4 +69,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.bin
+          body_path: docs/release-einleitung.md
           generate_release_notes: true
