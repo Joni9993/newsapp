@@ -361,11 +361,12 @@ static void tick_panel_in(void)
 {
     if (stage == 0) {
         T.w = GW - 8; T.h = pcard.kind == CARD_WEATHER ? 50 : 52;
-        T.x = 4; T.ty = ROW_Y0; T.y = -T.h - 20; T.vy = 0; T.on = true; T.carried = false;
+        T.x = 4; T.ty = ROW_Y0; T.y = -T.h - 20; T.vy = 0; T.on = true; T.carried = true;
         stage = 1;
     }
     if (stage == 1) {
-        if (fly_to(T.x + T.w / 2, -18, SPEED * 1.4f)) { stage = 2; T.carried = true; }
+        /* Tafel ausserhalb des Bildes anhaengen, sonst springt sie halb ins Bild */
+        if (fly_to(T.x + T.w / 2, -T.h - 2, SPEED * 1.4f)) { stage = 2; T.carried = true; }
     } else if (stage == 2) {
         bool there = fly_to(T.x + T.w / 2, T.ty - 1, SPEED * 0.8f);
         T.y = O.y + 1;
