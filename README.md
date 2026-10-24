@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.svg" alt="Logo: Pixel-Eule" width="160"></p>
+
 # Nachrichtenbote (Newsboard)
 
 Ein kleines Info-Display auf Basis eines **Seeed XIAO ESP32-C6** mit einem
