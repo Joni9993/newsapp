@@ -4,12 +4,14 @@
 
 | Datei | Wofür |
 |-------|-------|
-| `newsboard-full.bin` | **Erstinstallation per USB** – Standard-Display (ST7789, 320×240) |
+| `newsboard-full.bin` | **Erstinstallation per USB** – Standard-Display (2,8″, ST7789, 320×240) |
 | `newsboard-legacy-full.bin` | **Erstinstallation per USB** – altes 2″-Panel („Posteule“) |
 | `newsboard.bin` | **Update per WLAN** – Standard-Display |
 | `newsboard-legacy.bin` | **Update per WLAN** – altes 2″-Panel |
 
-Nimm immer die Variante, die zu deinem Display passt. Eine falsche Datei
+Nimm immer die Variante, die zu deinem Display passt. Nicht sicher? Das
+aktuelle Board hat ein 2,8″-Display, das alte („Posteule“) ein deutlich
+kleineres mit 2″. Eine falsche Datei
 führt zu einem falsch angesteuerten Display (Farben, Ausrichtung).
 
 ### Erstinstallation per USB (einmalig)
