@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release veroeffentlichen (z. B. v1.1). Leer lassen = nur bauen.'
+        required: false
+        default: ''
 
 permissions:
   contents: write # nur fuer das Release bei Tags
@@ -20,7 +25,11 @@ jobs:
 
       - name: Version bestimmen
         id: ver
-        run: echo "v=$(git describe --always --tags --dirty --abbrev=7)" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then v="$RELEASE_TAG"; else v="$(git describe --always --tags --dirty --abbrev=7)"; fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
 
       - name: Web-UI auf Syntaxfehler pruefen
         run: node --check main/app.js
@@ -65,9 +74,11 @@ jobs:
           if-no-files-found: error
 
       - name: Release erstellen
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: dist/*.bin
           body_path: docs/release-einleitung.md
           generate_release_notes: true
