@@ -28,6 +28,7 @@
 #define LEFT      3
 #define SPEED     4.5f
 #define MAX_WRAP  24    /* Zeilen je Artikel hoechstens */
+#define SETTLE    0.35f /* Anteil des Restwegs je Takt: gleitet weich an den Platz, ohne Nachfedern */
 
 /* Lesetempo: so lange bleibt die oberste Zeile, bevor sie geholt wird */
 #define READ_BASE_T   12    /* Takte Grundzeit */
@@ -206,7 +207,7 @@ static bool deliver(void)
     if (!there) return false;
     block_t *b = &R[nrows++];
     *b = carried;
-    b->st = B_SETTLE; b->vy = 1.6f; b->ty = ROW_Y0 + (nrows - 1) * ROW_H;
+    b->st = B_SETTLE; b->ty = ROW_Y0 + (nrows - 1) * ROW_H;
     carried.st = B_NONE;
     sparkle(b->x + b->w, b->y + 3, theme ? RGB(255, 190, 80) : RGB(255, 240, 180), 3);
     if (b->l.head && pending_mood[0]) { say(pending_mood, 2); pending_mood[0] = 0; }
@@ -323,7 +324,7 @@ static void tick_cycle(void)
     if (!there) return;
     block_t *b = &R[nrows++];
     *b = carried;
-    b->st = B_SETTLE; b->vy = 1.6f; b->ty = ROW_Y0 + (nrows - 1) * ROW_H;
+    b->st = B_SETTLE; b->ty = ROW_Y0 + (nrows - 1) * ROW_H;
     carried.st = B_NONE;
     sparkle(b->x + b->w, b->y + 3, theme ? RGB(255, 190, 80) : RGB(255, 240, 180), 3);
     start_wait(0);
@@ -369,7 +370,7 @@ static void tick_panel_in(void)
         bool there = fly_to(T.x + T.w / 2, T.ty - 1, SPEED * 0.8f);
         T.y = O.y + 1;
         if (there) {
-            T.carried = false; T.vy = 2.0f; stage = 3; t = 0;
+            T.carried = false; stage = 3; t = 0;
             sparkle(T.x + T.w / 2, T.y + T.h, RGB(255, 240, 180), 6);
             if (pcard.mood[0]) say(pcard.mood, 2);
         }
@@ -461,7 +462,7 @@ static void tick_note(void)
         bool there = fly_to(cx, ROW_Y0 - 1, SPEED);
         N.y = O.y + 1;
         if (there) {
-            N.carried = false; N.vy = 2.0f; stage = 2; t = 0;
+            N.carried = false; stage = 2; t = 0;
             sparkle(cx, N.y + NOTE_H, RGB(255, 220, 120), 8);
             say(theme ? "PING!" : "POST!", 2);
         }
@@ -478,9 +479,9 @@ static void tick_note(void)
             phase = saved_phase; stage = saved_stage; t = saved_t;
         }
     }
-    if (!N.carried && stage >= 2) {  /* federt an seinen Platz */
-        N.y += N.vy; N.vy += (ROW_Y0 - N.y) * 0.3f; N.vy *= 0.65f;
-        if (fabsf(N.y - ROW_Y0) < 0.3f && fabsf(N.vy) < 0.2f) { N.y = ROW_Y0; N.vy = 0; }
+    if (!N.carried && stage >= 2) {  /* gleitet an seinen Platz */
+        N.y += (ROW_Y0 - N.y) * SETTLE;
+        if (fabsf(ROW_Y0 - N.y) < 0.3f) { N.y = ROW_Y0; N.vy = 0; }
     }
 }
 
@@ -508,15 +509,13 @@ void courier_tick(void)
         break;
     }
     }
-    /* Zeilen federn an ihren Platz, Weggeworfenes segelt davon */
+    /* Zeilen gleiten an ihren Platz, Weggeworfenes segelt davon */
     for (int i = 0; i < nrows; i++) {
         block_t *b = &R[i];
         if (b->st != B_SETTLE) continue;
         b->x += (LEFT - b->x) * 0.4f;
-        b->y += b->vy;
-        b->vy += (b->ty - b->y) * 0.3f;
-        b->vy *= 0.62f;
-        if (fabsf(b->y - b->ty) < 0.3f && fabsf(b->vy) < 0.2f) { b->y = b->ty; b->x = LEFT; b->st = B_PLACED; }
+        b->y += (b->ty - b->y) * SETTLE;
+        if (fabsf(b->ty - b->y) < 0.3f) { b->y = b->ty; b->x = LEFT; b->st = B_PLACED; }
     }
     for (int i = 0; i < 4; i++) if (GONE[i].st == B_GONE) {
         GONE[i].x += GONE[i].vx; GONE[i].y += GONE[i].vy; GONE[i].vy += 0.08f;
@@ -524,8 +523,8 @@ void courier_tick(void)
     }
     for (int i = 0; i < ROWS; i++) bob[i] = (int8_t)(sinf(ticks * 0.05f + i * 0.9f) * 0.7f + 0.5f);
     if (T.on && !T.carried && phase != F_PANEL_OUT) {
-        T.y += T.vy; T.vy += (T.ty - T.y) * 0.3f; T.vy *= 0.65f;
-        if (fabsf(T.y - T.ty) < 0.3f && fabsf(T.vy) < 0.2f) { T.y = T.ty; T.vy = 0; }
+        T.y += (T.ty - T.y) * SETTLE;
+        if (fabsf(T.ty - T.y) < 0.3f) { T.y = T.ty; T.vy = 0; }
     }
     for (int i = 0; i < MAXFX; i++) if (FX[i].life) {
         FX[i].life--; FX[i].x += FX[i].vx; FX[i].y += FX[i].vy; FX[i].vy += 0.03f;
