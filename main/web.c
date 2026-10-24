@@ -289,6 +289,17 @@ static esp_err_t get(httpd_req_t *r) {
                           automate_flow_post_len);
     return httpd_resp_send_chunk(r, NULL, 0);
   }
+  if (!strcmp(u, "/api/v1/ota/status")) {
+    static const char *names[] = {"idle", "checking", "downloading", "done", "error"};
+    ota_online_t st;
+    ota_online_status(&st);
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "state", names[st.state]);
+    cJSON_AddNumberToObject(o, "progress", st.progress);
+    cJSON_AddStringToObject(o, "error", st.error);
+    cJSON_AddStringToObject(o, "latest", st.latest);
+    return json(r, o);
+  }
   if (!strcmp(u, "/api/v1/modules"))
     return json(r, modules_public());
   if (!strcmp(u, "/api/v1/status")) {
@@ -366,6 +377,36 @@ static esp_err_t post(httpd_req_t *r) {
   /* Firmware-Upload streamt den Body selbst: vor body() (max. 8 KB) abfangen */
   if (!strcmp(u, "/api/v1/ota"))
     return ota_upload(r);
+  if (!strcmp(u, "/api/v1/ota/check")) {
+    char err[96];
+    if (ota_online_check(err, sizeof err) != ESP_OK)
+      return error(r, "502 Bad Gateway", err);
+    ota_online_t st;
+    ota_online_status(&st);
+    char cur[32];
+    snprintf(cur, sizeof cur, "%s", esp_app_get_description()->version);
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "latest", st.latest);
+    cJSON_AddStringToObject(o, "current", cur);
+    cJSON_AddBoolToObject(o, "upToDate", ota_online_up_to_date(st.latest));
+    cJSON_AddStringToObject(o, "asset", ota_online_asset());
+    return json(r, o);
+  }
+  if (!strcmp(u, "/api/v1/ota/online")) {
+    char err[96], tag[24] = "";
+    if (r->content_len > 0) {
+      cJSON *t = body(r);
+      const cJSON *v = t ? cJSON_GetObjectItemCaseSensitive(t, "tag") : NULL;
+      if (cJSON_IsString(v) && strlen(v->valuestring) < sizeof tag)
+        snprintf(tag, sizeof tag, "%s", v->valuestring);
+      cJSON_Delete(t);
+    }
+    esp_err_t e = ota_online_start(tag, err, sizeof err);
+    if (e == ESP_OK)
+      return ok(r);
+    return error(r, e == ESP_ERR_INVALID_STATE ? "409 Conflict"
+                                                : "400 Bad Request", err);
+  }
   if (!strcmp(u, "/api/v1/wifi/scan"))
     return json(r, net_scan());
   cJSON *j = body(r);

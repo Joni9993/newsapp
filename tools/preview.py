@@ -6,6 +6,7 @@ root=Path(__file__).resolve().parents[1]
 catalog=[{'id':a,'name':b,'interval':int(c),'lastSuccess':0,'loading':False,'error':''} for a,b,c in re.findall(r'\{"([^"]+)",\s*"([^"]+)",\s*(\d+)\}',(root/'main/modules.c').read_text(encoding='utf-8'))]
 cfg=dict(region=1,mode=0,theme=0,duration=20,brightness=80,night_brightness=12,night_start=22,night_end=6,city='',ssid='',modules=[dict(id=m['id'],enabled=m['id'] in ['news','weather','clock']) for m in catalog],calendars=[dict(name='',provider='google',configured=False) for _ in range(6)])
 push=dict(enabled=True,privacy=0,token='0123456789abcdef0123456789abcdef')
+ota={}
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self,*args,**kw):super().__init__(*args,directory=str(root/'main'),**kw)
     def log_message(self,*args):pass
@@ -16,12 +17,19 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if not self.path.startswith('/api/'):return super().do_GET()
         if 'preview=1' not in self.headers.get('Cookie',''):return self.send_json({'error':'Vorschau: mit Code 123456 koppeln'},401)
+        if self.path.endswith('/ota/status'):
+            e=time.time()-ota.get('t',0) if ota.get('t') else 0;p=min(100,int(e*20))
+            return self.send_json(dict(state='idle' if not ota.get('t') else 'done' if p>=100 else 'downloading',progress=p if ota.get('t') else 0,error='',latest='v9.9'))
         if self.path.endswith('/notify/config'):return self.send_json(push)
         if self.path.endswith('/config'):return self.send_json(cfg)
         if self.path.endswith('/modules'):return self.send_json(catalog)
         if self.path.endswith('/status'):return self.send_json(dict(version='v0.0-preview',partition='ota_0',connected=False,setup=True,connecting=False,ip='192.168.4.1',error='',paused=False,heap=160000,minHeap=150000,uptime=130,timeValid=False,calendars=[dict(slot=i,error='',checking=False,updated=0) for i in range(6)]))
         self.send_json({'error':'Unknown'},404)
     def do_POST(self):
+        if self.path.endswith('/ota/check'):
+            self.rfile.read(int(self.headers.get('Content-Length','0')));return self.send_json(dict(latest='v9.9',current='v0.0-preview',upToDate=False,asset='newsboard.bin'))
+        if self.path.endswith('/ota/online'):
+            self.rfile.read(int(self.headers.get('Content-Length','0')));ota['t']=time.time();return self.send_json({'ok':True})
         if self.path.endswith('/api/v1/ota'):
             n=int(self.headers.get('Content-Length','0'));
             while n>0:n-=len(self.rfile.read(min(n,65536)))

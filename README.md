@@ -171,6 +171,15 @@ liegt unverändert an `0x9000`. Danach geht alles über WLAN.
 Es werden nur Images mit passendem Projektnamen akzeptiert. Die Firmware wird
 beim Hochladen auf Größe und Prüfsumme kontrolliert.
 
+**Online-Update:** Im Tab **fw** auf **Nach Update suchen** tippen. Das Board
+fragt GitHub nach dem neuesten Release von `Joni9993/newsapp` und zeigt die
+Version. Mit **Installieren** lädt es die passende Datei selbst herunter
+(`newsboard.bin`, beim alten Panel automatisch `newsboard-legacy.bin`),
+flasht sie und startet neu. Voraussetzungen: das Repo ist **öffentlich**
+(solange es privat ist, meldet das Board „Kein öffentliches Release gefunden“),
+das Board hat Internet und eine synchrone Uhrzeit. Der manuelle Upload bleibt
+als Alternative.
+
 **Rollback:** Eine neu installierte Firmware muss sich nach dem Start selbst
 bestätigen (sobald der Webserver läuft). Startet sie nicht oder stürzt vorher
 ab, schaltet der Bootloader beim nächsten Neustart automatisch auf die alte

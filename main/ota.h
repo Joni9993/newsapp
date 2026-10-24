@@ -13,3 +13,19 @@ void ota_mark_valid(void);
 esp_err_t ota_upload(httpd_req_t *r);
 /* Label der laufenden Partition (z. B. "ota_0"), "?" falls unbekannt */
 const char *ota_partition_label(void);
+
+/* ---- Online-Update (Board laedt das neueste GitHub-Release selbst) ---- */
+typedef enum { OTA_IDLE, OTA_CHECKING, OTA_DOWNLOADING, OTA_DONE, OTA_ERROR } ota_state_t;
+typedef struct {
+  ota_state_t state;
+  int progress; /* 0..100 */
+  char latest[24];
+  char error[96];
+} ota_online_t;
+void ota_online_status(ota_online_t *out);
+/* Fragt GitHub (blockiert einige s). ESP_OK: ota_online_status().latest gesetzt */
+esp_err_t ota_online_check(char *err, size_t en);
+const char *ota_online_asset(void);
+bool ota_online_up_to_date(const char *tag);
+/* Startet den Download-Task. tag leer/NULL -> zuletzt geprueftes Release */
+esp_err_t ota_online_start(const char *tag, char *err, size_t en);

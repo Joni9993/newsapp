@@ -1,4 +1,10 @@
 #include "ota.h"
+#include "net.h"
+#include "esp_crt_bundle.h"
+#include "esp_https_ota.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
 #include "esp_log.h"
@@ -13,7 +19,24 @@
 /* Heap ist knapp (~150 KB): nur ein kleiner Puffer, nie das ganze Image */
 #define CHUNK 4096
 
-static bool busy;
+/* GitHub-Repo fuer das Online-Update (muss oeffentlich sein) */
+#define OTA_REPO "Joni9993/newsapp"
+#ifdef LCD_LEGACY_PANEL
+#define OTA_ASSET "newsboard-legacy.bin"
+#else
+#define OTA_ASSET "newsboard.bin"
+#endif
+#define MIN_HEAP (60 * 1024)
+
+static volatile bool busy;
+static ota_online_t st; /* Zustand, per lock geschuetzt */
+static SemaphoreHandle_t lock;
+static void lk(void) {
+  if (!lock)
+    lock = xSemaphoreCreateMutex();
+  xSemaphoreTake(lock, portMAX_DELAY);
+}
+static void ul(void) { xSemaphoreGive(lock); }
 
 const char *ota_partition_label(void) {
   const esp_partition_t *p = esp_ota_get_running_partition();
@@ -194,4 +217,222 @@ fail:
   free(buf);
   busy = false;
   return reply(r, status, false, msg);
+}
+
+/* ------------------------------------------------------------ Online-Update */
+void ota_online_status(ota_online_t *out) {
+  lk();
+  *out = st;
+  ul();
+}
+static void set_err(const char *m) {
+  lk();
+  st.state = OTA_ERROR;
+  snprintf(st.error, sizeof st.error, "%s", m);
+  ul();
+  busy = false;
+}
+static void run_version(char *out, size_t n) {
+  snprintf(out, n, "%s", esp_app_get_description()->version);
+  char *l = strstr(out, "-legacy");
+  if (l)
+    *l = 0;
+}
+
+typedef struct {
+  char buf[3072];
+  size_t n;
+  bool found;
+  char tag[sizeof st.latest];
+} scan_t;
+/* Sucht "tag_name":"..." im Anfang der Antwort, der Rest wird nicht gelesen */
+static bool scan_cb(const char *d, size_t n, void *ctx) {
+  scan_t *s = ctx;
+  size_t k = n < sizeof s->buf - 1 - s->n ? n : sizeof s->buf - 1 - s->n;
+  memcpy(s->buf + s->n, d, k);
+  s->n += k;
+  s->buf[s->n] = 0;
+  char *p = strstr(s->buf, "\"tag_name\"");
+  if (p) {
+    p = strchr(p + 10, '"');
+    char *e = p ? strchr(p + 1, '"') : NULL;
+    if (e && e - p - 1 < (int)sizeof s->tag) {
+      memcpy(s->tag, p + 1, e - p - 1);
+      s->tag[e - p - 1] = 0;
+      s->found = true;
+      return false;
+    }
+  }
+  return s->n < sizeof s->buf - 1;
+}
+
+esp_err_t ota_online_check(char *err, size_t en) {
+  if (busy) {
+    snprintf(err, en, "Es läuft bereits ein Update");
+    return ESP_FAIL;
+  }
+  scan_t *s = calloc(1, sizeof *s);
+  if (!s) {
+    snprintf(err, en, "Speicher voll");
+    return ESP_ERR_NO_MEM;
+  }
+  busy = true; /* kein Install waehrend der Pruefung */
+  lk();
+  st.state = OTA_CHECKING;
+  st.error[0] = 0;
+  ul();
+  int c = net_get_ex("https://api.github.com/repos/" OTA_REPO "/releases/latest",
+                     scan_cb, s, 64 * 1024, 20);
+  const char *m = NULL;
+  if (c == -1)
+    m = "Keine Verbindung zu GitHub (Internet?)";
+  else if (c == -2)
+    m = "Uhrzeit noch nicht synchron, bitte später erneut versuchen";
+  else if (c == -3 || (c == 200 && !s->found))
+    m = "Unerwartete Antwort von GitHub";
+  else if (c == 404)
+    m = "Kein öffentliches Release gefunden (Repo privat?)";
+  else if (c == 403 || c == 429)
+    m = "GitHub-Abfragelimit erreicht, später erneut versuchen";
+  else if (c != 200)
+    m = "GitHub-Abfrage fehlgeschlagen";
+  lk();
+  if (m) {
+    st.state = OTA_ERROR;
+    snprintf(st.error, sizeof st.error, "%s", m);
+  } else {
+    st.state = OTA_IDLE;
+    snprintf(st.latest, sizeof st.latest, "%s", s->tag);
+  }
+  ul();
+  busy = false;
+  free(s);
+  if (m) {
+    snprintf(err, en, "%s", m);
+    return ESP_FAIL;
+  }
+  return ESP_OK;
+}
+const char *ota_online_asset(void) { return OTA_ASSET; }
+bool ota_online_up_to_date(const char *tag) {
+  char cur[32];
+  run_version(cur, sizeof cur);
+  return !strcmp(cur, tag);
+}
+
+static void online_task(void *arg) {
+  char url[160], tag[sizeof st.latest];
+  lk();
+  snprintf(tag, sizeof tag, "%s", st.latest);
+  ul();
+  snprintf(url, sizeof url,
+           "https://github.com/" OTA_REPO "/releases/download/%s/" OTA_ASSET,
+           tag);
+  esp_http_client_config_t hc = {.url = url,
+                                 .user_agent = "newsboard",
+                                 .crt_bundle_attach = esp_crt_bundle_attach,
+                                 .max_redirection_count = 5,
+                                 .buffer_size = 4096,
+                                 .buffer_size_tx = 2048,
+                                 .timeout_ms = 15000,
+                                 .keep_alive_enable = true};
+  esp_https_ota_config_t oc = {.http_config = &hc};
+  esp_https_ota_handle_t h = NULL;
+  ESP_LOGI(TAG, "Online-Update %s, Heap %u", tag,
+           (unsigned)esp_get_free_heap_size());
+  esp_err_t e = esp_https_ota_begin(&oc, &h);
+  if (e != ESP_OK) {
+    ESP_LOGW(TAG, "begin: %s", esp_err_to_name(e));
+    set_err(e == ESP_ERR_NO_MEM ? "Speicher voll"
+                                : "Download nicht möglich (Release ohne passende Datei?)");
+    vTaskDelete(NULL);
+    return;
+  }
+  esp_app_desc_t desc;
+  if (esp_https_ota_get_img_desc(h, &desc) != ESP_OK ||
+      strncmp(desc.project_name, esp_app_get_description()->project_name,
+              sizeof desc.project_name)) {
+    esp_https_ota_abort(h);
+    set_err("Falsche Firmware: gehört nicht zum Nachrichtenbote");
+    vTaskDelete(NULL);
+    return;
+  }
+  lk();
+  st.state = OTA_DOWNLOADING;
+  st.progress = 0;
+  ul();
+  while ((e = esp_https_ota_perform(h)) == ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+    int tot = esp_https_ota_get_image_size(h), got = esp_https_ota_get_image_len_read(h);
+    if (tot > 0) {
+      lk();
+      st.progress = (int)((int64_t)got * 100 / tot);
+      ul();
+    }
+  }
+  if (e != ESP_OK || !esp_https_ota_is_complete_data_received(h)) {
+    ESP_LOGW(TAG, "perform: %s", esp_err_to_name(e));
+    esp_https_ota_abort(h);
+    set_err("Download abgebrochen oder unvollständig");
+    vTaskDelete(NULL);
+    return;
+  }
+  e = esp_https_ota_finish(h);
+  if (e != ESP_OK) {
+    ESP_LOGW(TAG, "finish: %s", esp_err_to_name(e));
+    set_err(e == ESP_ERR_OTA_VALIDATE_FAILED ? "Firmware-Image ungültig (Prüfsumme)"
+                                              : "Update konnte nicht abgeschlossen werden");
+    vTaskDelete(NULL);
+    return;
+  }
+  lk();
+  st.state = OTA_DONE;
+  st.progress = 100;
+  ul();
+  ESP_LOGI(TAG, "Online-Update ok, Neustart");
+  restart_soon(); /* busy bleibt true */
+  vTaskDelete(NULL);
+}
+
+esp_err_t ota_online_start(const char *tag, char *err, size_t en) {
+  if (busy) {
+    snprintf(err, en, "Es läuft bereits ein Update");
+    return ESP_ERR_INVALID_STATE;
+  }
+  if (!net_connected() || !net_time_valid()) {
+    snprintf(err, en, "Keine Internetverbindung oder Uhrzeit nicht synchron");
+    return ESP_FAIL;
+  }
+  if (esp_get_free_heap_size() < MIN_HEAP) {
+    snprintf(err, en, "Zu wenig freier Speicher, bitte kurz warten und erneut versuchen");
+    return ESP_ERR_NO_MEM;
+  }
+  lk();
+  bool ok = tag && tag[0] && strlen(tag) < sizeof st.latest;
+  if (ok)
+    for (const char *c = tag; *c; c++)
+      if (!((*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'z') ||
+            (*c >= 'A' && *c <= 'Z') || *c == '.' || *c == '-' || *c == '_'))
+        ok = false;
+  if (!ok && st.latest[0]) {
+    tag = st.latest;
+    ok = true;
+  }
+  if (!ok) {
+    ul();
+    snprintf(err, en, "Erst nach Updates suchen");
+    return ESP_ERR_INVALID_ARG;
+  }
+  if (tag != st.latest)
+    snprintf(st.latest, sizeof st.latest, "%s", tag);
+  st.state = OTA_DOWNLOADING;
+  st.progress = 0;
+  st.error[0] = 0;
+  ul();
+  busy = true;
+  if (xTaskCreate(online_task, "ota_dl", 8192, NULL, 5, NULL) != pdPASS) {
+    set_err("Speicher voll");
+    snprintf(err, en, "Speicher voll");
+    return ESP_ERR_NO_MEM;
+  }
+  return ESP_OK;
 }
