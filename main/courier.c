@@ -25,6 +25,10 @@
 #define ROWS      7
 #define ROW_Y0    10
 #define ROW_H     7
+/* Grosse Tafel (bis y 62 inkl. Schatten) bleibt frei: Eule sitzt waehrend des Lesens unten im Gras.
+ * Sprite 16 hoch, Zeichnung ab O.y-16, Umriss 1 px darueber -> Oberkante >= 63 bei O.y = GH (80);
+ * Fuesse liegen auf der letzten Bildzeile. */
+#define PANEL_PERCH_Y GH
 #define LEFT      3
 #define SPEED     4.5f
 #define MAX_WRAP  24    /* Zeilen je Artikel hoechstens */
@@ -384,8 +388,8 @@ static void tick_panel_in(void)
 static void tick_panel_read(void)
 {
     float px, py;
-    scene_perch(O.perch, &px, &py);
-    if (fly_to(px, py, SPEED)) idle_face();
+    scene_perch(O.perch, &px, &py);   /* nur x: Seitenwechsel bleibt erhalten */
+    if (fly_to(px, PANEL_PERCH_Y, SPEED)) idle_face();
     if (++t > COURIER_HZ * 9) { phase = F_PANEL_OUT; stage = 0; t = 0; }
 }
 
