@@ -18,6 +18,7 @@ void config_defaults(board_config_t *c) {
   c->night_brightness = 12;
   c->night_start = 22;
   c->night_end = 6;
+  c->auto_update = 2; /* Modus 1 (pruefen + Hinweis), siehe config.h */
   c->region = 1;
   for (int i = 0; i < MODULE_COUNT; i++) {
     c->order[i] = i;
@@ -29,7 +30,7 @@ void config_defaults(board_config_t *c) {
 static bool valid(const board_config_t *c) {
   if (c->version != 2 || c->region < 1 || c->region > 16 || c->mode > 1 ||
       c->theme > 1 || c->brightness > 100 || c->night_brightness > 100 ||
-      c->night_start > 23 || c->night_end > 23 || c->duration < 5 ||
+      c->night_start > 23 || c->night_end > 23 || c->auto_update > 3 || c->duration < 5 ||
       c->duration > 120)
     return false;
   unsigned mask = 0;
@@ -113,6 +114,8 @@ bool config_init(void) {
   else
     ok = false;
   free(buf);
+  if (saved.auto_update > 3) /* altes Auffuellbyte war nie garantiert 0 */
+    saved.auto_update = 0;
   ok = ok && valid(&saved);
   if (ok)
     current = saved;
@@ -133,6 +136,12 @@ bool config_enabled(int module) {
 int config_order(int pos) {
   xSemaphoreTake(lock, portMAX_DELAY);
   int m = current.order[pos];
+  xSemaphoreGive(lock);
+  return m;
+}
+int config_auto_update(void) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  int m = current.auto_update ? current.auto_update - 1 : 1;
   xSemaphoreGive(lock);
   return m;
 }
@@ -252,6 +261,12 @@ bool config_update(const cJSON *j, char *error, size_t size) {
   FIELD(night_start, 0, 23);
   FIELD(night_end, 0, 23);
   FIELD(duration, 5, 120);
+  {
+    int n = c.auto_update ? c.auto_update - 1 : 1;
+    if (!number(j, "autoUpdate", 0, 2, &n))
+      goto done;
+    c.auto_update = n + 1;
+  }
   const cJSON *v = cJSON_GetObjectItemCaseSensitive(j, "city");
   if (v) {
     if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof c.city)
@@ -330,6 +345,8 @@ cJSON *config_public(void) {
   ADD(night_start);
   ADD(night_end);
   ADD(duration);
+  cJSON_AddNumberToObject(j, "autoUpdate",
+                          c.auto_update ? c.auto_update - 1 : 1);
   cJSON_AddStringToObject(j, "city", c.city);
   cJSON_AddStringToObject(j, "ssid", c.ssid);
   cJSON *a = cJSON_AddArrayToObject(j, "modules");

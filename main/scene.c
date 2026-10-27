@@ -1,6 +1,7 @@
 #include "scene.h"
 #include "gfx.h"
 #include "net.h"
+#include "ota.h"
 #include "sources.h"
 #include "text.h"
 #include <math.h>
@@ -474,6 +475,7 @@ void scene_draw_topbar(void)
     char b[32];
     text_simplify(b, 14, sources_city()[0] ? sources_city() : "...");
     gfx_text(2, 1, b, RGB(230, 220, 190));
+    int city_end = 2 + gfx_text_w(b);
     weather_t w = C_w;
     int x = GW - 2;
     if (w.valid) {
@@ -488,6 +490,15 @@ void scene_draw_topbar(void)
         snprintf(b, sizeof b, "%02d:%02d", C_lt.tm_hour, C_lt.tm_min);
         x -= gfx_text_w(b);
         gfx_text(x, 1, b, C_WHITE);
+    }
+    /* Update-Hinweis: kleiner gruener Pfeil links neben der Uhrzeit, nur wenn
+     * zwischen Ort und Uhrzeit noch Platz ist */
+    if (ota_update_available(NULL, 0) && x - 5 > city_end + 1) {
+        uint16_t g = RGB(120, 240, 140);
+        int ax = x - 5;
+        gfx_px(ax + 1, 1, g);
+        gfx_fill(ax, 2, 3, 1, g);
+        gfx_fill(ax + 1, 3, 1, 3, g);
     }
 }
 

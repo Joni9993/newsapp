@@ -2,6 +2,7 @@
 #include "esp_timer.h"
 #include "gfx.h"
 #include "net.h"
+#include "ota.h"
 #include "sources.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -162,7 +163,15 @@ static void topbar(bool paused) {
   int x = GW - 2 - gfx_text_w(t);
   gfx_text_plain(x, 1, t, BG);
   const char *st = paused ? "[||]" : on ? "[ON]" : "[OFF]";
-  gfx_text_plain(x - 4 - gfx_text_w(st), 1, st, BG);
+  int sx = x - 4 - gfx_text_w(st);
+  gfx_text_plain(sx, 1, st, BG);
+  /* Update-Hinweis: kleiner Pfeil links neben dem Status, wenn Platz ist */
+  if (ota_update_available(NULL, 0) && sx - 5 > 2 + gfx_text_w(ip) + 1) {
+    int ax = sx - 5;
+    gfx_px(ax + 1, 1, BG);
+    gfx_fill(ax, 2, 3, 1, BG);
+    gfx_fill(ax + 1, 3, 1, 3, BG);
+  }
 }
 /* Unten nur noch: wie lange die Karte noch steht */
 static void progress(unsigned ticks, unsigned duration) {

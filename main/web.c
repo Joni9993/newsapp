@@ -232,6 +232,13 @@ static esp_err_t notify_handler(httpd_req_t *r) {
   free(b);
   return e;
 }
+/* updateAvailable/updateTag: Ergebnis der automatischen (oder letzten) Pruefung */
+static void update_fields(cJSON *o) {
+  char tag[24] = "";
+  bool a = ota_update_available(tag, sizeof tag);
+  cJSON_AddBoolToObject(o, "updateAvailable", a);
+  cJSON_AddStringToObject(o, "updateTag", tag);
+}
 static esp_err_t get(httpd_req_t *r) {
   const char *u = r->uri;
   if (!strcmp(u, "/") || !strcmp(u, "/index.html")) {
@@ -302,6 +309,7 @@ static esp_err_t get(httpd_req_t *r) {
     cJSON_AddBoolToObject(o, "upToDate",
                           st.latest[0] && ota_online_up_to_date(st.latest));
     cJSON_AddStringToObject(o, "asset", ota_online_asset());
+    update_fields(o);
     return json(r, o);
   }
   if (!strcmp(u, "/api/v1/modules"))
@@ -316,6 +324,7 @@ static esp_err_t get(httpd_req_t *r) {
     cJSON_AddNumberToObject(o, "largestHeapBlock",
                             heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(o, "uptime", esp_timer_get_time() / 1000000);
+    update_fields(o);
     static const char *const resets[] = {
         "?",        "power-on", "extern", "software", "PANIC",
         "int-wdt",  "task-wdt", "wdt",    "deepsleep", "brownout", "sdio"};

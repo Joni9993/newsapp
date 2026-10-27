@@ -31,3 +31,10 @@ const char *ota_online_asset(void);
 bool ota_online_up_to_date(const char *tag);
 /* Startet den Download-Task. tag leer/NULL -> zuletzt geprueftes Release */
 esp_err_t ota_online_start(const char *tag, char *err, size_t en);
+
+/* ---- Automatische Updates (Einstellung autoUpdate, siehe config.h) ---- */
+/* Startet die Hintergrundaufgabe; nach ota_mark_valid() aufrufen. */
+void ota_auto_start(void);
+/* Gibt es laut letzter Pruefung ein neueres Release? tag (24 Zeichen, darf
+ * NULL sein) bekommt dessen Namen. Billig genug fuer jedes Anzeigebild. */
+bool ota_update_available(char *tag, size_t n);

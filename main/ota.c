@@ -1,4 +1,5 @@
 #include "ota.h"
+#include "config.h"
 #include "net.h"
 #include "sources.h"
 #include "esp_crt_bundle.h"
@@ -15,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define TAG "ota"
 /* Heap ist knapp (~150 KB): nur ein kleiner Puffer, nie das ganze Image */
@@ -37,6 +39,11 @@
 static volatile bool busy;
 static ota_online_t st; /* Zustand, per lock geschuetzt */
 static SemaphoreHandle_t lock;
+/* Ergebnis der letzten erfolgreichen Pruefung: gibt es ein neueres Release? */
+static volatile bool update_avail;
+static char update_tag[sizeof st.latest]; /* per lock geschuetzt */
+/* Naechste automatische Pruefung in Sekunden seit Start, 0 = noch nicht gesetzt */
+static volatile int32_t next_check;
 static void lk(void) {
   if (!lock)
     lock = xSemaphoreCreateMutex();
@@ -277,6 +284,23 @@ static void run_version(char *out, size_t n) {
     *l = 0;
 }
 
+/* Ist tag (z. B. "v1.6") neuer als die laufende Version? Lassen sich beide
+ * nicht als Versionsnummer lesen, zaehlt "anders" als neuer. */
+static bool newer(const char *tag) {
+  char cur[32];
+  run_version(cur, sizeof cur);
+  int a[3] = {0}, b[3] = {0};
+  const char *t = tag + (*tag == 'v'), *c = cur + (cur[0] == 'v');
+  int na = sscanf(t, "%d.%d.%d", &a[0], &a[1], &a[2]);
+  int nb = sscanf(c, "%d.%d.%d", &b[0], &b[1], &b[2]);
+  if (na < 2 || nb < 2)
+    return strcmp(tag, cur) != 0;
+  for (int i = 0; i < 3; i++)
+    if (a[i] != b[i])
+      return a[i] > b[i];
+  return false;
+}
+
 typedef struct {
   char buf[3072];
   size_t n;
@@ -336,8 +360,12 @@ static void check_run(void) {
   } else {
     st.state = OTA_IDLE;
     snprintf(st.latest, sizeof st.latest, "%s", s->tag);
+    snprintf(update_tag, sizeof update_tag, "%s", s->tag);
+    update_avail = newer(s->tag);
   }
   ul();
+  /* naechste Pruefung: nach Erfolg in 24 h, nach Fehler in 1 h */
+  next_check = (int32_t)(esp_timer_get_time() / 1000000) + (m ? 3600 : 86400);
   free(s);
   busy = false;
 }
@@ -571,4 +599,57 @@ esp_err_t ota_online_start(const char *tag, char *err, size_t en) {
     return ESP_ERR_NO_MEM;
   }
   return ESP_OK;
+}
+
+/* ------------------------------------------------- Automatische Pruefung */
+bool ota_update_available(char *tag, size_t n) {
+  bool a = update_avail;
+  if (a && tag && n) {
+    lk();
+    snprintf(tag, n, "%s", update_tag);
+    ul();
+  }
+  return a;
+}
+
+/* Einmal pro Minute: Modus 1 und 2 pruefen taeglich (erste Pruefung ~3 min
+ * nachdem Uhrzeit und Netz da sind). Modus 2 prueft zusaetzlich einmal pro
+ * Nacht im Fenster 03:00-04:59 und installiert dann ein neueres Release;
+ * scheitert das (z. B. Speicher knapp), gibt es erst in der naechsten Nacht
+ * einen neuen Versuch. */
+static void auto_task(void *arg) {
+  int night_checked = -1, night_tried = -1;
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(60000));
+    int mode = config_auto_update();
+    if (!mode || busy || !net_connected() || !net_time_valid())
+      continue;
+    int32_t up = (int32_t)(esp_timer_get_time() / 1000000);
+    if (!next_check) {
+      next_check = up + 180;
+      continue;
+    }
+    time_t t = time(NULL);
+    struct tm lt;
+    localtime_r(&t, &lt);
+    int day = lt.tm_year * 400 + lt.tm_yday;
+    bool night = mode == 2 && lt.tm_hour >= 3 && lt.tm_hour < 5;
+    char err[96], tag[sizeof update_tag];
+    if (night && night_checked != day) {
+      night_checked = day;
+      ota_online_check_start(err, sizeof err);
+    } else if (night && night_tried != day && update_avail) {
+      ota_update_available(tag, sizeof tag);
+      esp_err_t e = ota_online_start(tag, err, sizeof err);
+      ESP_LOGI(TAG, "Nacht-Update %s: %s", tag, e == ESP_OK ? "gestartet" : err);
+      if (e != ESP_ERR_INVALID_STATE) /* nur "beschaeftigt" wird gleich erneut versucht */
+        night_tried = day;
+    } else if (up >= next_check) {
+      next_check = up + 3600; /* check_run setzt den echten Wert */
+      ota_online_check_start(err, sizeof err);
+    }
+  }
+}
+void ota_auto_start(void) {
+  xTaskCreate(auto_task, "ota_auto", 4096, NULL, 1, NULL);
 }

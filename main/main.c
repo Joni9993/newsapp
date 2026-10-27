@@ -33,6 +33,7 @@ void app_main(void) {
    * gut; sonst Rollback auf die alte Firmware beim naechsten Neustart. */
   if (web_start())
     ota_mark_valid();
+  ota_auto_start();
   gpio_config_t g = {.pin_bit_mask = 1ULL << 9,
                      .mode = GPIO_MODE_INPUT,
                      .pull_up_en = GPIO_PULLUP_ENABLE};
