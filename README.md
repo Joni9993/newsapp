@@ -195,7 +195,7 @@ gespeichert mit `:w save`):
 | --- | --- | --- |
 | 0 | Aus | keine automatische Suche |
 | 1 | Prüfen und Hinweis (Standard) | erste Suche ca. 3 min nach Start (sobald Netz und Uhrzeit da sind), danach alle 24 h; ein neueres Release zeigt ein kleines Pfeil-Symbol in der Kopfzeile (Eule und Terminal, wenn Platz ist) und „Update verfügbar“ im Tab **fw** |
-| 2 | Nachts installieren | wie 1, zusätzlich Suche im Fenster 03:00–04:59 Ortszeit und automatische Installation. Ist das Board beschäftigt oder der Speicher knapp, gibt es den nächsten Versuch erst in der nächsten Nacht |
+| 2 | Nachts installieren | wie 1, zusätzlich Suche im Fenster 03:00–04:59 Ortszeit und automatische Installation. Ist das Board beschäftigt oder der Speicher knapp, gibt es den nächsten Versuch erst in der nächsten Nacht. Jede Version wird nachts nur einmal versucht (kein Dauer-Neuversuch nach einem Rollback), und Entwickler-Builds (z. B. `v1.5-3-gabc123`) werden nie automatisch überschrieben |
 
 **Rollback:** Eine neu installierte Firmware muss sich nach dem Start selbst
 bestätigen (sobald der Webserver läuft). Startet sie nicht oder stürzt vorher

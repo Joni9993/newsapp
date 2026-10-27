@@ -1,4 +1,5 @@
 #include "ota.h"
+#include "nvs.h"
 #include "config.h"
 #include "net.h"
 #include "sources.h"
@@ -617,6 +618,31 @@ bool ota_update_available(char *tag, size_t n) {
  * Nacht im Fenster 03:00-04:59 und installiert dann ein neueres Release;
  * scheitert das (z. B. Speicher knapp), gibt es erst in der naechsten Nacht
  * einen neuen Versuch. */
+/* Nacht-Update nur fuer echte Releases ("v1.5", nicht "v1.5-3-gabc" oder "dev")
+ * und nie zweimal fuer denselben Tag: nach einem Rollback liefe es sonst jede
+ * Nacht erneut. Der zuletzt versuchte Tag liegt im NVS. */
+static bool auto_install_allowed(const char *tag) {
+  const char *v = esp_app_get_description()->version;
+  if (v[0] != 'v' || strstr(v, "-g") || strstr(v, "dirty"))
+    return false;
+  char last[32] = "";
+  size_t n = sizeof last;
+  nvs_handle_t h;
+  if (nvs_open("ota", NVS_READONLY, &h) == ESP_OK) {
+    nvs_get_str(h, "auto_tag", last, &n);
+    nvs_close(h);
+  }
+  return strcmp(last, tag) != 0;
+}
+static void auto_install_remember(const char *tag) {
+  nvs_handle_t h;
+  if (nvs_open("ota", NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_str(h, "auto_tag", tag);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+}
+
 static void auto_task(void *arg) {
   int night_checked = -1, night_tried = -1;
   for (;;) {
@@ -640,7 +666,13 @@ static void auto_task(void *arg) {
       ota_online_check_start(err, sizeof err);
     } else if (night && night_tried != day && update_avail) {
       ota_update_available(tag, sizeof tag);
+      if (!auto_install_allowed(tag)) {
+        night_tried = day;
+        continue;
+      }
       esp_err_t e = ota_online_start(tag, err, sizeof err);
+      if (e == ESP_OK)
+        auto_install_remember(tag);
       ESP_LOGI(TAG, "Nacht-Update %s: %s", tag, e == ESP_OK ? "gestartet" : err);
       if (e != ESP_ERR_INVALID_STATE) /* nur "beschaeftigt" wird gleich erneut versucht */
         night_tried = day;
