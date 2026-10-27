@@ -125,7 +125,8 @@ erhalten (siehe [Update über WLAN](#update-über-wlan-ota)).
 
 ### Kalender
 
-In der Weboberfläche bis zu sechs Kalender eintragen (weitere über den +-Button). Bei Google Kalender die
+In der Weboberfläche bis zu sechs Kalender eintragen (weitere über den
++-Button). Bei Google Kalender die
 **„Privatadresse im iCal-Format“** (endet auf `.ics`) verwenden, nicht die
 Kalender-ID. Links müssen mit `https://` beginnen.
 
