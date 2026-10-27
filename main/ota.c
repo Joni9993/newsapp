@@ -279,36 +279,31 @@ static bool scan_cb(const char *d, size_t n, void *ctx) {
   return s->n < sizeof s->buf - 1;
 }
 
-esp_err_t ota_online_check(char *err, size_t en) {
-  if (busy) {
-    snprintf(err, en, "Es läuft bereits ein Update");
-    return ESP_FAIL;
-  }
-  scan_t *s = calloc(1, sizeof *s);
-  if (!s) {
-    snprintf(err, en, "Speicher voll");
-    return ESP_ERR_NO_MEM;
-  }
-  busy = true; /* kein Install waehrend der Pruefung */
-  lk();
-  st.state = OTA_CHECKING;
-  st.error[0] = 0;
-  ul();
-  int c = net_get_ex("https://api.github.com/repos/" OTA_REPO "/releases/latest",
-                     scan_cb, s, 64 * 1024, 20);
+/* Eigentliche Pruefung; busy ist schon gesetzt und wird am Ende geloescht */
+static void check_run(void) {
   const char *m = NULL;
-  if (c == -1)
-    m = "Keine Verbindung zu GitHub (Internet?)";
-  else if (c == -2)
-    m = "Uhrzeit noch nicht synchron, bitte später erneut versuchen";
-  else if (c == -3 || (c == 200 && !s->found))
-    m = "Unerwartete Antwort von GitHub";
-  else if (c == 404)
-    m = "Kein öffentliches Release gefunden (Repo privat?)";
-  else if (c == 403 || c == 429)
-    m = "GitHub-Abfragelimit erreicht, später erneut versuchen";
-  else if (c != 200)
-    m = "GitHub-Abfrage fehlgeschlagen";
+  scan_t *s = calloc(1, sizeof *s);
+  int c = 0;
+  if (!s) {
+    m = "Speicher voll";
+  } else if (esp_get_free_heap_size() < MIN_HEAP) {
+    m = "Zu wenig freier Speicher, bitte kurz warten und erneut versuchen";
+  } else {
+    c = net_get_ex("https://api.github.com/repos/" OTA_REPO "/releases/latest",
+                   scan_cb, s, 64 * 1024, 20);
+    if (c == -1)
+      m = "Keine Verbindung zu GitHub (Internet?)";
+    else if (c == -2)
+      m = "Uhrzeit noch nicht synchron, bitte später erneut versuchen";
+    else if (c == -3 || (c == 200 && !s->found))
+      m = "Unerwartete Antwort von GitHub";
+    else if (c == 404)
+      m = "Kein öffentliches Release gefunden (Repo privat?)";
+    else if (c == 403 || c == 429)
+      m = "GitHub-Abfragelimit erreicht, später erneut versuchen";
+    else if (c != 200)
+      m = "GitHub-Abfrage fehlgeschlagen";
+  }
   lk();
   if (m) {
     st.state = OTA_ERROR;
@@ -318,11 +313,28 @@ esp_err_t ota_online_check(char *err, size_t en) {
     snprintf(st.latest, sizeof st.latest, "%s", s->tag);
   }
   ul();
-  busy = false;
   free(s);
-  if (m) {
-    snprintf(err, en, "%s", m);
-    return ESP_FAIL;
+  busy = false;
+}
+static void check_task(void *arg) {
+  check_run();
+  vTaskDelete(NULL);
+}
+/* Startet die Pruefung im Hintergrund; Ergebnis steht danach in ota_online_status() */
+esp_err_t ota_online_check_start(char *err, size_t en) {
+  if (busy) {
+    snprintf(err, en, "Es läuft bereits ein Update");
+    return ESP_ERR_INVALID_STATE;
+  }
+  busy = true; /* kein Install waehrend der Pruefung */
+  lk();
+  st.state = OTA_CHECKING;
+  st.error[0] = 0;
+  ul();
+  if (xTaskCreate(check_task, "ota_chk", 8192, NULL, 4, NULL) != pdPASS) {
+    set_err("Speicher voll");
+    snprintf(err, en, "Speicher voll");
+    return ESP_ERR_NO_MEM;
   }
   return ESP_OK;
 }

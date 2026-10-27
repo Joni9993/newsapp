@@ -298,6 +298,10 @@ static esp_err_t get(httpd_req_t *r) {
     cJSON_AddNumberToObject(o, "progress", st.progress);
     cJSON_AddStringToObject(o, "error", st.error);
     cJSON_AddStringToObject(o, "latest", st.latest);
+    cJSON_AddStringToObject(o, "current", esp_app_get_description()->version);
+    cJSON_AddBoolToObject(o, "upToDate",
+                          st.latest[0] && ota_online_up_to_date(st.latest));
+    cJSON_AddStringToObject(o, "asset", ota_online_asset());
     return json(r, o);
   }
   if (!strcmp(u, "/api/v1/modules"))
@@ -378,19 +382,13 @@ static esp_err_t post(httpd_req_t *r) {
   if (!strcmp(u, "/api/v1/ota"))
     return ota_upload(r);
   if (!strcmp(u, "/api/v1/ota/check")) {
+    /* Pruefung laeuft im Hintergrund, Ergebnis kommt ueber /ota/status */
     char err[96];
-    if (ota_online_check(err, sizeof err) != ESP_OK)
-      return error(r, "502 Bad Gateway", err);
-    ota_online_t st;
-    ota_online_status(&st);
-    char cur[32];
-    snprintf(cur, sizeof cur, "%s", esp_app_get_description()->version);
-    cJSON *o = cJSON_CreateObject();
-    cJSON_AddStringToObject(o, "latest", st.latest);
-    cJSON_AddStringToObject(o, "current", cur);
-    cJSON_AddBoolToObject(o, "upToDate", ota_online_up_to_date(st.latest));
-    cJSON_AddStringToObject(o, "asset", ota_online_asset());
-    return json(r, o);
+    esp_err_t e = ota_online_check_start(err, sizeof err);
+    if (e == ESP_OK)
+      return ok(r);
+    return error(r, e == ESP_ERR_INVALID_STATE ? "409 Conflict"
+                                                : "503 Service Unavailable", err);
   }
   if (!strcmp(u, "/api/v1/ota/online")) {
     char err[96], tag[24] = "";

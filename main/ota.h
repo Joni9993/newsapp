@@ -23,8 +23,10 @@ typedef struct {
   char error[128];
 } ota_online_t;
 void ota_online_status(ota_online_t *out);
-/* Fragt GitHub (blockiert einige s). ESP_OK: ota_online_status().latest gesetzt */
-esp_err_t ota_online_check(char *err, size_t en);
+/* Fragt GitHub in einer eigenen Aufgabe (kehrt sofort zurueck). Danach zeigt
+ * ota_online_status(): state CHECKING, dann IDLE (latest gesetzt) oder ERROR.
+ * ESP_ERR_INVALID_STATE: es laeuft schon ein Update/eine Pruefung. */
+esp_err_t ota_online_check_start(char *err, size_t en);
 const char *ota_online_asset(void);
 bool ota_online_up_to_date(const char *tag);
 /* Startet den Download-Task. tag leer/NULL -> zuletzt geprueftes Release */
