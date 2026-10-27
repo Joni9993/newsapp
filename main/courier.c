@@ -761,12 +761,27 @@ static void draw_courier(void)
 static void draw_bubble(void)
 {
     if (!bubble_t || !bubble[0]) return;
+    uint16_t edge = theme ? RGB(120, 230, 120) : RGB(10, 12, 24);
     int w = gfx_text_w(bubble) + 6, x = (int)O.x - w / 2, y = (int)O.y - 28;
     if (x < 1) x = 1;
     if (x + w > GW - 1) x = GW - 1 - w;
     if (y < SCENE_TOP + 1) y = SCENE_TOP + 1;
-    rounded(x, y, w, 9, theme ? RGB(20, 30, 20) : C_WHITE, theme ? RGB(120, 230, 120) : RGB(10, 12, 24));
-    gfx_px((int)O.x, y + 9, theme ? RGB(120, 230, 120) : RGB(10, 12, 24));
+    int tx = (int)O.x, ty = y + 9;                      /* Spitze unter der Blase, zeigt zur Eule */
+    /* Sitzt die Eule waehrend einer Tafel unten im Gras, laege die Blase ueber der Tafel:
+     * dann neben die Eule setzen, rechts wenn Platz ist, sonst links (Spitze seitlich). */
+    if (T.on && x < T.x + T.w && x + w > T.x && y < T.y + T.h + 1 && y + 9 > T.y) {
+        int right = (int)O.x + 10, left = (int)O.x - 10 - w;
+        bool go_right = right + w <= GW - 1 || left < 1;
+        x = go_right ? right : left;
+        if (x + w > GW - 1) x = GW - 1 - w;
+        if (x < 1) x = 1;
+        y = GH - 14;
+        if (y < (int)T.y + T.h + 2) y = (int)T.y + T.h + 2;
+        ty = y + 4;
+        tx = go_right ? x - 1 : x + w;
+    }
+    rounded(x, y, w, 9, theme ? RGB(20, 30, 20) : C_WHITE, edge);
+    gfx_px(tx, ty, edge);
     gfx_text_plain(x + 3, y + 2, bubble, theme ? RGB(140, 255, 140) : RGB(10, 12, 24));
 }
 
