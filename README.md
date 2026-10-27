@@ -12,12 +12,12 @@ ein Handy im selben WLAN genügt.
 
 ## Funktionen
 
-- **17 Module**, einzeln an-/abschaltbar und frei sortierbar:
+- **18 Module**, einzeln an-/abschaltbar und frei sortierbar:
   Tagesschau, Wetter (Open-Meteo), Heute in der Geschichte, Geburtstage,
   Wikipedia-Zufall, Sonnenzeiten, Mond, Kalenderwoche, Ökostrom,
   Luftqualität, Erdbeben, Feiertage, Menschen im Weltall, Bitcoin,
-  Euro/US-Dollar, Meine Termine, Uhrzeit
-- **Kalender**: bis zu 3 iCal-Kalender (z. B. Google-Privatadresse `.ics`),
+  Euro/US-Dollar, Meine Termine, Uhrzeit, JW.ORG-Nachrichten
+- **Kalender**: bis zu 6 iCal-Kalender (z. B. Google-Privatadresse `.ics`),
   mit eigenem Parser inkl. Wiederholungen, Ausnahmen und Zeitzonen
 - **Push-Nachrichten vom Handy**: eine Automatisierungs-App (z. B. Automate
   oder MacroDroid) leitet Benachrichtigungen an das Board weiter
@@ -125,7 +125,7 @@ erhalten (siehe [Update über WLAN](#update-über-wlan-ota)).
 
 ### Kalender
 
-In der Weboberfläche bis zu drei Kalender eintragen. Bei Google Kalender die
+In der Weboberfläche bis zu sechs Kalender eintragen (weitere über den +-Button). Bei Google Kalender die
 **„Privatadresse im iCal-Format“** (endet auf `.ics`) verwenden, nicht die
 Kalender-ID. Links müssen mit `https://` beginnen.
 
@@ -214,9 +214,12 @@ Speichert die Ausgabe in `build/runtime.log` und zeigt wichtige Zeilen
 
 Die Tests in [tests/test_ical.py](tests/test_ical.py) prüfen den echten
 iCal-Parser der Firmware auf dem PC. Dazu muss `main/ical.c` zuerst als
-Bibliothek `build/ical-test.dll` gebaut werden, z. B. mit MinGW-GCC:
+Bibliothek `build/ical-test.dll` gebaut werden, z. B. mit MinGW-GCC (unter Linux
+zusätzlich `-fPIC`):
 
 ```sh
 gcc -shared -O2 -o build/ical-test.dll main/ical.c
 python tests/test_ical.py
 ```
+
+Der GitHub-Build führt diese Tests bei jedem Push automatisch aus.
