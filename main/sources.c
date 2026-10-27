@@ -39,6 +39,10 @@ const char *sources_status(void) { return status; }
 void sources_weather(weather_t *out) { *out = weather; }
 
 static bool fetch_failed;
+/* Pause (z. B. waehrend eines Firmware-Updates): kein neuer Abruf, bis wieder frei */
+static volatile bool paused, fetching;
+void sources_pause(bool on) { paused = on; }
+bool sources_idle(void) { return !fetching; }
 static int source_get(const char *url,net_data_cb cb,void *ctx) { int code=net_get(url,cb,ctx); if(code!=200){fetch_failed=true;ESP_LOGW(TAG,"Abruf %d (heap %u): %.90s",code,(unsigned)esp_get_free_heap_size(),url);} return code; }
 static bool feed_json(const char *d, size_t n, void *ctx) { return json_feed((json_t *)ctx, d, n); }
 
@@ -610,9 +614,12 @@ static void clock_card(void){
 static void task(void *arg) {
  uint32_t rev=0;int64_t due[MODULE_COUNT]={0};bool location=false;char last_city[64]="";
  for(;;){
+ fetching=true;
+ if(paused){fetching=false;vTaskDelay(pdMS_TO_TICKS(250));continue;}
  calendar_process_check();char cfg_city[64];uint8_t cfg_region;config_location(cfg_city,sizeof cfg_city,&cfg_region);uint32_t nowrev=config_revision();
  if(rev!=nowrev){memset(due,0,sizeof due);rev=nowrev;if(strcmp(last_city,cfg_city)){location=false;weather.valid=false;snprintf(last_city,sizeof last_city,"%s",cfg_city);}}
  for(int order=0;order<MODULE_COUNT;order++){
+ if(paused)break;
  int m=config_order(order);int64_t now=esp_timer_get_time()/1000000;
  if(!config_enabled(m)||now<due[m])continue;
  if(!net_time_valid()){module_end(m,"Warte auf WLAN und Uhrzeit");continue;}
@@ -632,7 +639,7 @@ static void task(void *arg) {
  module_end(m,fetch_failed?"Quelle derzeit nicht erreichbar oder keine gültigen Daten":NULL);
  due[m]=now+(fetch_failed?120:modules[m].interval);if(config_revision()!=rev)break;
  }
- status="wartet";vTaskDelay(pdMS_TO_TICKS(1000));
+ status="wartet";fetching=false;vTaskDelay(pdMS_TO_TICKS(1000));
  }
 }
 void sources_start(void){cards_init();xTaskCreate(task,"quellen",24576,NULL,1,NULL);}

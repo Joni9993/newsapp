@@ -1,5 +1,6 @@
 #include "ota.h"
 #include "net.h"
+#include "sources.h"
 #include "esp_crt_bundle.h"
 #include "esp_https_ota.h"
 #include "freertos/FreeRTOS.h"
@@ -37,6 +38,15 @@ static void lk(void) {
   xSemaphoreTake(lock, portMAX_DELAY);
 }
 static void ul(void) { xSemaphoreGive(lock); }
+
+/* Quellen anhalten und bis ~20 s warten, bis der laufende Abruf fertig ist:
+ * so teilen sich Update und Quellen nicht Heap und Netz. Bei Fehler wieder
+ * mit sources_pause(false) freigeben; nach Erfolg startet das Board neu. */
+static void sources_hold(void) {
+  sources_pause(true);
+  for (int i = 0; i < 200 && !sources_idle(); i++)
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
 
 const char *ota_partition_label(void) {
   const esp_partition_t *p = esp_ota_get_running_partition();
@@ -156,6 +166,7 @@ esp_err_t ota_upload(httpd_req_t *r) {
     goto fail;
   }
   discard = false;
+  sources_hold();
   ESP_LOGI(TAG, "Update %s -> %s (%u Bytes) nach %s", self->version,
            desc.version, (unsigned)total, part->label);
 
@@ -210,6 +221,7 @@ esp_err_t ota_upload(httpd_req_t *r) {
 
 fail:
   ESP_LOGW(TAG, "Update abgelehnt: %s", msg);
+  sources_pause(false);
   if (begun)
     esp_ota_abort(h);
   if (discard)
@@ -230,6 +242,7 @@ static void set_err(const char *m) {
   st.state = OTA_ERROR;
   snprintf(st.error, sizeof st.error, "%s", m);
   ul();
+  sources_pause(false);
   busy = false;
 }
 static void run_version(char *out, size_t n) {
@@ -372,6 +385,7 @@ static int resolve_url(const char *url, char *out, size_t n) {
 
 static void online_task(void *arg) {
   char url[160], tag[sizeof st.latest], msg[sizeof st.error];
+  sources_hold();
   lk();
   snprintf(tag, sizeof tag, "%s", st.latest);
   ul();

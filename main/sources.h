@@ -4,6 +4,10 @@
 #include <stdbool.h>
 
 void sources_start(void);
+/* Pause: die Quellen holen nichts Neues (laufender Abruf wird noch beendet).
+ * sources_idle() meldet, ob gerade kein Abruf mehr laeuft. */
+void sources_pause(bool on);
+bool sources_idle(void);
 
 /* Was Himmel, Landschaft und Wetter-Tafel brauchen */
 typedef struct {
