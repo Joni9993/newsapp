@@ -379,7 +379,7 @@ static esp_err_t post(httpd_req_t *r) {
   if (!authorized(r))
     return error(r, "401 Unauthorized", "Bitte erneut koppeln");
   /* Firmware-Upload streamt den Body selbst: vor body() (max. 8 KB) abfangen */
-  if (!strcmp(u, "/api/v1/ota"))
+  if (!strncmp(u, "/api/v1/ota", 11) && (!u[11] || u[11] == '?'))
     return ota_upload(r);
   if (!strcmp(u, "/api/v1/ota/check")) {
     /* Pruefung laeuft im Hintergrund, Ergebnis kommt ueber /ota/status */

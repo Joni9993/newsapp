@@ -27,6 +27,11 @@
 #else
 #define OTA_ASSET "newsboard.bin"
 #endif
+#ifdef LCD_LEGACY_PANEL
+#define RUN_LEGACY true
+#else
+#define RUN_LEGACY false
+#endif
 #define MIN_HEAP (60 * 1024)
 
 static volatile bool busy;
@@ -111,6 +116,20 @@ static void drain(httpd_req_t *r, char *buf, size_t left) {
   }
 }
 
+/* Version endet auf "-legacy" -> Image fuer das alte 2"-Panel */
+static bool image_legacy(const esp_app_desc_t *d) {
+  size_t n = strnlen(d->version, sizeof d->version);
+  return n >= 7 && !memcmp(d->version + n - 7, "-legacy", 7);
+}
+
+/* ?force=1: Display-Variante nicht pruefen */
+static bool force_requested(httpd_req_t *r) {
+  char q[64], v[8];
+  return httpd_req_get_url_query_str(r, q, sizeof q) == ESP_OK &&
+         httpd_query_key_value(q, "force", v, sizeof v) == ESP_OK &&
+         !strcmp(v, "1");
+}
+
 esp_err_t ota_upload(httpd_req_t *r) {
   const size_t total = r->content_len;
   const size_t need = sizeof(esp_image_header_t) +
@@ -163,6 +182,12 @@ esp_err_t ota_upload(httpd_req_t *r) {
   if (strncmp(desc.project_name, self->project_name,
               sizeof desc.project_name)) {
     msg = "Falsche Firmware: gehört nicht zum Nachrichtenbote";
+    goto fail;
+  }
+  if (image_legacy(&desc) != RUN_LEGACY && !force_requested(r)) {
+    msg = image_legacy(&desc)
+              ? "Falsche Display-Variante: Datei ist für altes 2\\\"-Panel"
+              : "Falsche Display-Variante: Datei ist für Standard-Display";
     goto fail;
   }
   discard = false;
