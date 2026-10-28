@@ -34,6 +34,13 @@ jobs:
       - name: Web-UI auf Syntaxfehler pruefen
         run: node --check main/app.js
 
+      - name: Host-Tests (iCal-Parser)
+        run: |
+          mkdir -p build
+          gcc -shared -fPIC -O2 -o build/ical-test.dll main/ical.c
+          python3 tests/test_ical.py
+          rm -rf build # idf.py soll mit leerem build/ starten
+
       - name: Bauen (Standard-Display)
         uses: espressif/esp-idf-ci-action@v1
         with:
