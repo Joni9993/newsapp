@@ -530,7 +530,7 @@ static bool parse_crange(const char *v, size_t *a, size_t *b, size_t *t) {
   return true;
 }
 
-enum { R_OK, R_RETRY, R_AUTH, R_FATAL };
+enum { DL_OK, DL_RETRY, DL_AUTH, DL_FATAL };
 typedef struct {
   char *url;        /* signierte Adresse, wird bei 401/403 erneuert */
   size_t urlcap;
@@ -541,7 +541,7 @@ typedef struct {
   bool begun;
   size_t off, total; /* geschriebene Bytes, Gesamtgroesse (0 = unbekannt) */
   char why[40];      /* kurze Ursache des letzten Fehlversuchs */
-  char msg[sizeof st.error]; /* endgueltiger Fehler (R_FATAL) */
+  char msg[sizeof st.error]; /* endgueltiger Fehler (DL_FATAL) */
 } dl_t;
 
 static void log_heap(const char *what, const dl_t *d) {
@@ -576,7 +576,7 @@ static int start_ota(dl_t *d) {
     m = "Firmware ist zu groß für die Update-Partition";
   if (m) {
     snprintf(d->msg, sizeof d->msg, "%s", m);
-    return R_FATAL;
+    return DL_FATAL;
   }
   /* Laufendes Image noch PENDING_VERIFY? Dann verweigert esp_ota_begin
    * (ESP_ERR_OTA_ROLLBACK_INVALID_STATE): vorher bestaetigen */
@@ -595,10 +595,10 @@ static int start_ota(dl_t *d) {
              (unsigned)esp_get_free_heap_size());
     snprintf(d->msg, sizeof d->msg, "Flash-Vorbereitung fehlgeschlagen (%s)",
              esp_err_to_name(e));
-    return R_FATAL;
+    return DL_FATAL;
   }
   d->begun = true;
-  return R_OK;
+  return DL_OK;
 }
 
 /* Holt einen Teil ab d->off. Schon geschriebene Bytes bleiben (d->off waechst
@@ -624,9 +624,9 @@ static int get_chunk(dl_t *d) {
   esp_http_client_handle_t c = esp_http_client_init(&cfg);
   if (!c) {
     snprintf(d->why, sizeof d->why, "Speicher voll");
-    return R_RETRY;
+    return DL_RETRY;
   }
-  int rc = R_RETRY;
+  int rc = DL_RETRY;
   size_t expected = 0, got = 0, fill = 0;
   esp_http_client_set_header(c, "Range", range);
   esp_err_t e = esp_http_client_open(c, 0);
@@ -642,7 +642,7 @@ static int get_chunk(dl_t *d) {
   }
   if (status == 401 || status == 403) {
     snprintf(d->why, sizeof d->why, "HTTP %d", status);
-    rc = R_AUTH;
+    rc = DL_AUTH;
     goto out;
   }
   if (status == 206) {
@@ -653,7 +653,7 @@ static int get_chunk(dl_t *d) {
     }
     if (d->total && t != d->total) {
       snprintf(d->msg, sizeof d->msg, "Die Download-Datei hat sich während des Downloads geändert");
-      rc = R_FATAL;
+      rc = DL_FATAL;
       goto out;
     }
     d->total = t;
@@ -682,7 +682,7 @@ static int get_chunk(dl_t *d) {
       if (fill < HEAD_NEED)
         continue; /* erst den ganzen Anfang sammeln, noch nichts schreiben */
       rc = start_ota(d);
-      if (rc != R_OK)
+      if (rc != DL_OK)
         goto out;
     }
     e = esp_ota_write(d->h, d->buf, fill);
@@ -690,7 +690,7 @@ static int get_chunk(dl_t *d) {
       ESP_LOGW(TAG, "ota_write: %s bei %u", esp_err_to_name(e), (unsigned)d->off);
       snprintf(d->msg, sizeof d->msg, "Schreiben fehlgeschlagen (%s) bei %u KB",
                esp_err_to_name(e), (unsigned)(d->off / 1024));
-      rc = R_FATAL;
+      rc = DL_FATAL;
       goto out;
     }
     d->off += fill;
@@ -699,10 +699,10 @@ static int get_chunk(dl_t *d) {
   }
   if (!d->begun) {
     snprintf(d->msg, sizeof d->msg, "Download-Datei zu klein für eine Firmware");
-    rc = R_FATAL;
+    rc = DL_FATAL;
     goto out;
   }
-  rc = R_OK;
+  rc = DL_OK;
 out:
   esp_http_client_close(c);
   esp_http_client_cleanup(c);
@@ -718,15 +718,15 @@ static bool dl_run(dl_t *d, char *msg, size_t mn) {
       return true;
     size_t before = d->off;
     int r = get_chunk(d);
-    if (r == R_OK) {
+    if (r == DL_OK) {
       fails = 0;
       continue;
     }
-    if (r == R_FATAL) {
+    if (r == DL_FATAL) {
       snprintf(msg, mn, "%s", d->msg);
       return false;
     }
-    if (r == R_AUTH && !reauth) {
+    if (r == DL_AUTH && !reauth) {
       reauth = true;
       log_heap("401/403, neue Adresse", d);
       int rs = resolve_url(d->orig, d->url, d->urlcap);
