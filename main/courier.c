@@ -767,16 +767,20 @@ static void draw_bubble(void)
     if (x + w > GW - 1) x = GW - 1 - w;
     if (y < SCENE_TOP + 1) y = SCENE_TOP + 1;
     int tx = (int)O.x, ty = y + 9;                      /* Spitze unter der Blase, zeigt zur Eule */
-    /* Sitzt die Eule waehrend einer Tafel unten im Gras, laege die Blase ueber der Tafel:
-     * dann neben die Eule setzen, rechts wenn Platz ist, sonst links (Spitze seitlich). */
-    if (T.on && x < T.x + T.w && x + w > T.x && y < T.y + T.h + 1 && y + 9 > T.y) {
+    /* Sitzt die Eule waehrend einer Tafel unten im Gras (ganz unter der Tafel), laege die
+     * Blase ueber der Tafel: dann neben die Eule setzen, auf ihrer Hoehe, rechts wenn Platz
+     * ist, sonst links (Spitze seitlich). Die Blase haengt immer an der Eule und fliegt mit;
+     * solange die Eule noch ueber der Tafel fliegt, bleibt sie normal ueber ihr. */
+    if (T.on && (int)O.y - 16 > (int)T.y + T.h && x < T.x + T.w && x + w > T.x &&
+        y < T.y + T.h + 1 && y + 9 > T.y) {
         int right = (int)O.x + 10, left = (int)O.x - 10 - w;
         bool go_right = right + w <= GW - 1 || left < 1;
         x = go_right ? right : left;
         if (x + w > GW - 1) x = GW - 1 - w;
         if (x < 1) x = 1;
-        y = GH - 14;
+        y = (int)O.y - 13;                              /* auf Kopfhoehe der Eule */
         if (y < (int)T.y + T.h + 2) y = (int)T.y + T.h + 2;
+        if (y > GH - 10) y = GH - 10;
         ty = y + 4;
         tx = go_right ? x - 1 : x + w;
     }
