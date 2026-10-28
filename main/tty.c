@@ -173,7 +173,7 @@ static void topbar(bool paused) {
     struct tm tm;
     localtime_r(&now, &tm);
     strftime(t, sizeof t, "%H:%M", &tm);
-    if ((esp_timer_get_time() / 500000) & 1)
+    if (config_tty_blink() && ((esp_timer_get_time() / 500000) & 1))
       t[2] = ' ';   /* blinkender Doppelpunkt */
   }
   x -= gfx_text_w(t);

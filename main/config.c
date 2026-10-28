@@ -29,7 +29,7 @@ void config_defaults(board_config_t *c) {
 }
 static bool valid(const board_config_t *c) {
   if (c->version != 2 || c->region < 1 || c->region > 16 || c->mode > 1 ||
-      c->theme > 3 || c->brightness > 100 || c->night_brightness > 100 ||
+      c->theme > 7 || c->brightness > 100 || c->night_brightness > 100 ||
       c->night_start > 23 || c->night_end > 23 || c->auto_update > 3 || c->duration < 5 ||
       c->duration > 120)
     return false;
@@ -151,6 +151,12 @@ int config_tty_header(void) {
   xSemaphoreGive(lock);
   return m;
 }
+int config_tty_blink(void) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  int m = (current.theme & THEME_TTY_BLINK) != 0;
+  xSemaphoreGive(lock);
+  return m;
+}
 uint16_t config_duration(void) {
   xSemaphoreTake(lock, portMAX_DELAY);
   uint16_t d = current.duration;
@@ -265,7 +271,7 @@ bool config_update(const cJSON *j, char *error, size_t size) {
     int n = THEME_FIGURE(c.theme);
     if (!number(j, "theme", 0, 1, &n))
       goto done;
-    c.theme = (c.theme & THEME_TTY_CITY) | n;
+    c.theme = (c.theme & ~1) | n;
   }
   FIELD(brightness, 0, 100);
   FIELD(night_brightness, 0, 100);
@@ -282,7 +288,13 @@ bool config_update(const cJSON *j, char *error, size_t size) {
     int n = (c.theme & THEME_TTY_CITY) != 0;
     if (!number(j, "ttyHeader", 0, 1, &n))
       goto done;
-    c.theme = THEME_FIGURE(c.theme) | (n ? THEME_TTY_CITY : 0);
+    c.theme = (c.theme & ~THEME_TTY_CITY) | (n ? THEME_TTY_CITY : 0);
+  }
+  {
+    int n = (c.theme & THEME_TTY_BLINK) != 0;
+    if (!number(j, "clockBlink", 0, 1, &n))
+      goto done;
+    c.theme = (c.theme & ~THEME_TTY_BLINK) | (n ? THEME_TTY_BLINK : 0);
   }
   const cJSON *v = cJSON_GetObjectItemCaseSensitive(j, "city");
   if (v) {
@@ -365,6 +377,7 @@ cJSON *config_public(void) {
   cJSON_AddNumberToObject(j, "autoUpdate",
                           c.auto_update ? c.auto_update - 1 : 1);
   cJSON_AddNumberToObject(j, "ttyHeader", (c.theme & THEME_TTY_CITY) != 0);
+  cJSON_AddNumberToObject(j, "clockBlink", (c.theme & THEME_TTY_BLINK) != 0);
   cJSON_AddStringToObject(j, "city", c.city);
   cJSON_AddStringToObject(j, "ssid", c.ssid);
   cJSON *a = cJSON_AddArrayToObject(j, "modules");
