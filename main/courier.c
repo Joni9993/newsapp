@@ -658,7 +658,8 @@ static void draw_panel(void)
     gfx_fill(x + 2, y + h, w - 2, 1, RGB(10, 10, 20));
     rounded(x, y, w, h, block_bg(), block_edge());
     gfx_fill(x + 1, y + 1, w - 2, 8, sc);
-    gfx_text(x + 4, y + 2, pcard.head, C_WHITE);
+    /* Ort steht schon in der Kopfzeile -> Karte nur "WETTER" */
+    gfx_text(x + 4, y + 2, pcard.kind == CARD_WEATHER ? "WETTER" : pcard.head, C_WHITE);
     char b[40];
     if (pcard.kind == CARD_WEATHER) {
         weather_t wx;

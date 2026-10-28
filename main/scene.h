@@ -3,6 +3,7 @@
  * der gelbe Briefkasten der Eule, Voegel, Schmetterlinge, Gluehwuermchen, Regen und Schnee. */
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
 #define SCENE_TOP     8     /* unter der Kopfzeile */
 #define SCENE_GROUND  66    /* Oberkante der Wiese */
@@ -11,6 +12,10 @@ void scene_tick(void);
 void scene_draw_back(void);    /* Himmel, Gestirne, Wolken, Huegel, Baum - hinter den Nachrichten */
 void scene_draw_front(void);   /* Wiese, Blumen, Briefkasten, Niederschlag, Tiere - davor */
 void scene_draw_topbar(void);
+
+/* Wetter-Symbol (WMO-Code, Tag/Nacht) farbig bei (x,y), 5x5/6x5; badge = dunkle Plakette dahinter */
+int wx_header_icon(int code, bool day);
+void scene_weather_icon(int x, int y, int code, bool day, bool badge);
 
 /* Landeplaetze der Eule: 0 = Briefkasten rechts, 1 = Baumstumpf links (Fusspunkt) */
 void scene_perch(int which, float *x, float *y);

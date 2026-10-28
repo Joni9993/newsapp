@@ -4,6 +4,7 @@
 #include "net.h"
 #include "ota.h"
 #include "config.h"
+#include "scene.h"
 #include "sources.h"
 #include "text.h"
 #include <stdio.h>
@@ -141,21 +142,6 @@ static void draw_rain(int level) {
 
 /* ------------------------------------------------------------ Leisten */
 
-/* kleines Wetter-Symbol (wie in der Eulen-Ansicht, einfarbig dunkel auf der Leiste) */
-static void mini_weather(int x, int y, int code) {
-  if (code <= 1) {
-    gfx_fill(x + 1, y, 3, 5, BG);
-    gfx_fill(x, y + 1, 5, 3, BG);
-    return;
-  }
-  gfx_fill(x, y + 1, 6, 3, BG);
-  gfx_fill(x + 1, y, 3, 1, BG);
-  if (code >= 51) {
-    gfx_px(x + 1, y + 4, BG);
-    gfx_px(x + 4, y + 4, BG);
-  }
-}
-
 static void topbar(bool paused) {
   if (!band_hit(0, 7))
     return;
@@ -178,8 +164,8 @@ static void topbar(bool paused) {
     x -= gfx_text_w(tb);
     gfx_text_plain(x, 1, tb, BG);
     x -= 8;
-    mini_weather(x, 1, wx.code);
-    x -= 3;
+    scene_weather_icon(x, 1, wx.code, wx.is_day, true);
+    x -= 4;
   }
   char t[8] = "--:--";
   if (net_time_valid()) {
@@ -346,7 +332,7 @@ static void forecast(int y, const char *name, float lo, float hi,
 }
 static void weather_card(const card_t *card, unsigned ticks) {
   int left = 9999;
-  prompt(9, card->head, &left);
+  prompt(9, config_tty_header() ? "WETTER" : card->head, &left);   /* Ort steht dann schon oben */
   if (!wx.valid) {
     label(3, 22, "KEINE WETTERDATEN", DIM);
     return;
