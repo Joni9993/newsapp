@@ -229,8 +229,9 @@ void gfx_spr_rot_outline(const spr_t *s, int px, int py, int ox, int oy, int ang
 /* 3x5-Schrift: 15 Bit, oberste Zeile in den hohen Bits. */
 static uint16_t glyph(char ch)
 {
-    /* 1..3 = Ae Oe Ue (Grundbuchstabe, Punkte zeichnet accent()), 4 = Eszett */
+    /* 1..3 = Ae Oe Ue (Grundbuchstabe, Punkte zeichnet accent()), 4 = Eszett, 5 = Gradzeichen */
     if (ch == 1) ch = 'A'; else if (ch == 2) ch = 'O'; else if (ch == 3) ch = 'U'; else if (ch == 4) return 0x3BAE;
+    if (ch == 5) return 0x6C00;   /* Grad: 2x2 oben links */
     static const uint16_t dig[10] = { 0x7B6F, 0x2C97, 0x73E7, 0x73CF, 0x5BC9, 0x79CF, 0x79EF, 0x7292, 0x7BEF, 0x7BCF };
     static const uint16_t abc[26] = {
         0x2BED, 0x6BAE, 0x3923, 0x6B6E, 0x79A7, 0x79A4, 0x396B, 0x5BED, 0x7497, 0x126A,
