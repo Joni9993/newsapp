@@ -432,7 +432,11 @@ static int resolve_url(const char *url, char *out, size_t n) {
                                   .user_agent = "newsboard",
                                   .crt_bundle_attach = esp_crt_bundle_attach,
                                   .disable_auto_redirect = true,
-                                  .method = HTTP_METHOD_HEAD,
+                                  /* GET, nicht HEAD: GitHub signiert die Zieladresse
+                                   * fuer die Methode der Anfrage - eine per HEAD
+                                   * erhaltene Adresse liefert beim Download 401.
+                                   * Der Body der Weiterleitung ist leer. */
+                                  .method = HTTP_METHOD_GET,
                                   .buffer_size = 2048,
                                   .buffer_size_tx = 2048,
                                   .timeout_ms = 15000,
@@ -460,7 +464,7 @@ static int resolve_url(const char *url, char *out, size_t n) {
         break;
       }
       /* Ziel liegt auf einem anderen Host (signierte Download-Adresse): dort
-       * nicht nachfragen, HEAD liefert da 401 - die Adresse selbst reicht */
+       * nicht nachfragen, die Adresse selbst reicht (der Download holt sie gleich) */
       if (strncmp(out, "https://github.com/", 19)) {
         status = 200;
         break;
