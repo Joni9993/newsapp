@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #define TAG "ota"
@@ -399,9 +400,34 @@ bool ota_online_up_to_date(const char *tag) {
   return !strcmp(cur, tag);
 }
 
+/* Location-Header roh mitschneiden: esp_http_client_get_url() liefert die
+ * Adresse ohne Query - die signierte Download-Adresse waere dann ungueltig */
+typedef struct {
+  char *out;
+  size_t n;
+  bool seen, too_long;
+} loc_t;
+static esp_err_t loc_event(esp_http_client_event_t *e) {
+  if (e->event_id == HTTP_EVENT_ON_HEADER && e->header_key && e->header_value &&
+      !strcasecmp(e->header_key, "Location")) {
+    loc_t *l = e->user_data;
+    l->seen = true;
+    if (strlen(e->header_value) >= l->n) {
+      l->too_long = true;
+      l->out[0] = 0;
+    } else if (e->header_value[0] == '/') { /* relativ: gehoert zu github.com */
+      snprintf(l->out, l->n, "https://github.com%s", e->header_value);
+    } else {
+      snprintf(l->out, l->n, "%s", e->header_value);
+    }
+  }
+  return ESP_OK;
+}
+
 /* Weiterleitungen selbst aufloesen (GitHub -> anderer Host), liefert Endziel in out.
  * Rueckgabe: 200 ok, sonst HTTP-Status oder -1 (Fehler), -2 (kein https), -3 (kein Speicher) */
 static int resolve_url(const char *url, char *out, size_t n) {
+  loc_t loc = {.out = out, .n = n};
   esp_http_client_config_t cfg = {.url = url,
                                   .user_agent = "newsboard",
                                   .crt_bundle_attach = esp_crt_bundle_attach,
@@ -409,12 +435,15 @@ static int resolve_url(const char *url, char *out, size_t n) {
                                   .method = HTTP_METHOD_HEAD,
                                   .buffer_size = 2048,
                                   .buffer_size_tx = 2048,
-                                  .timeout_ms = 15000};
+                                  .timeout_ms = 15000,
+                                  .event_handler = loc_event,
+                                  .user_data = &loc};
   esp_http_client_handle_t c = esp_http_client_init(&cfg);
   if (!c)
     return -3;
   int status = -1;
   for (int hop = 0; hop < 4; hop++) {
+    loc.seen = loc.too_long = false;
     if (esp_http_client_open(c, 0) != ESP_OK) {
       status = -1;
       break;
@@ -422,11 +451,10 @@ static int resolve_url(const char *url, char *out, size_t n) {
     esp_http_client_fetch_headers(c);
     status = esp_http_client_get_status_code(c);
     if (status >= 300 && status < 400) {
-      if (esp_http_client_set_redirection(c) != ESP_OK) {
+      if (!loc.seen || loc.too_long || !out[0]) {
         status = -1;
         break;
       }
-      esp_http_client_get_url(c, out, n);
       if (strncmp(out, "https://", 8)) {
         status = -2;
         break;
@@ -438,10 +466,14 @@ static int resolve_url(const char *url, char *out, size_t n) {
         break;
       }
       esp_http_client_close(c);
+      if (esp_http_client_set_url(c, out) != ESP_OK) {
+        status = -1;
+        break;
+      }
       continue;
     }
     if (status == 200 && hop == 0)
-      snprintf(out, n, "%s", url); /* sonst steht das Ziel schon in out */
+      snprintf(out, n, "%s", url); /* sonst steht die zuletzt abgefragte Adresse schon in out */
     break;
   }
   esp_http_client_close(c);
