@@ -314,7 +314,7 @@ static uint16_t heat(int t) {
 static void forecast(int y, const char *name, float lo, float hi,
                      unsigned ticks) {
   label(3, y, name, DIM);
-  int x0 = 30, x1 = 78;
+  int x0 = 30, x1 = 74;   /* Platz fuer "-3/12 Grad C" rechts daneben */
   for (int x = x0; x <= x1; x += 2)
     gfx_px(x, y + 2, DARK);
   int a = x0 + ((int)lo + 10) * (x1 - x0) / 45,
@@ -327,8 +327,8 @@ static void forecast(int y, const char *name, float lo, float hi,
   for (int x = a; x <= a + grow; x++)
     gfx_fill(x, y + 1, 1, 3, heat(-10 + (x - x0) * 45 / (x1 - x0)));
   char s[16];
-  snprintf(s, sizeof s, "%.0f/%.0f", lo, hi);
-  label(82, y, s, FG);
+  snprintf(s, sizeof s, "%.0f/%.0f" TEXT_DEG "C", lo, hi);
+  label(78, y, s, FG);
 }
 static void weather_card(const card_t *card, unsigned ticks) {
   int left = 9999;

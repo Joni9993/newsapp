@@ -8,6 +8,7 @@
 #define TEXT_OE "\x02"
 #define TEXT_UE "\x03"
 #define TEXT_SZ "\x04"
+#define TEXT_DEG "\x05"   /* Gradzeichen (eigene Glyphe, nur fuer feste Texte) */
 
 /* UTF-8 -> darstellbarer Text (Grossbuchstaben). Schneidet bei max-1 Zeichen ab. */
 void text_simplify(char *out, size_t max, const char *utf8);
