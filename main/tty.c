@@ -165,12 +165,15 @@ static void topbar(bool paused) {
   const char *st = paused ? "[||]" : on ? "[ON]" : "[OFF]";
   int sx = x - 4 - gfx_text_w(st);
   gfx_text_plain(sx, 1, st, BG);
-  /* Update-Hinweis: kleiner Pfeil links neben dem Status, wenn Platz ist */
-  if (ota_update_available(NULL, 0) && sx - 5 > 2 + gfx_text_w(ip) + 1) {
-    int ax = sx - 5;
-    gfx_px(ax + 1, 1, BG);
-    gfx_fill(ax, 2, 3, 1, BG);
-    gfx_fill(ax + 1, 3, 1, 3, BG);
+  /* Update-Hinweis: 5x6 Download-Symbol links neben dem Status (1 s an, 0,5 s aus), wenn Platz ist */
+  int ax = sx - 6;
+  if (ota_update_available(NULL, 0) && ax > 2 + gfx_text_w(ip) + 1 &&
+      esp_timer_get_time() % 1500000 < 1000000) {
+    static const char *const DL[6] = {"..X..", "..X..", "X.X.X", ".XXX.", "..X..", "XXXXX"};
+    for (int r = 0; r < 6; r++)
+      for (int c = 0; c < 5; c++)
+        if (DL[r][c] == 'X')
+          gfx_px(ax + c, 1 + r, BG);
   }
 }
 /* Unten nur noch: wie lange die Karte noch steht */
