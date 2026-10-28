@@ -145,6 +145,12 @@ int config_auto_update(void) {
   xSemaphoreGive(lock);
   return m;
 }
+int config_tty_header(void) {
+  xSemaphoreTake(lock, portMAX_DELAY);
+  int m = current.tty_header == TTY_HEADER_CITY;
+  xSemaphoreGive(lock);
+  return m;
+}
 uint16_t config_duration(void) {
   xSemaphoreTake(lock, portMAX_DELAY);
   uint16_t d = current.duration;
@@ -267,6 +273,12 @@ bool config_update(const cJSON *j, char *error, size_t size) {
       goto done;
     c.auto_update = n + 1;
   }
+  {
+    int n = c.tty_header == TTY_HEADER_CITY;
+    if (!number(j, "ttyHeader", 0, 1, &n))
+      goto done;
+    c.tty_header = n ? TTY_HEADER_CITY : 0;
+  }
   const cJSON *v = cJSON_GetObjectItemCaseSensitive(j, "city");
   if (v) {
     if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof c.city)
@@ -347,6 +359,7 @@ cJSON *config_public(void) {
   ADD(duration);
   cJSON_AddNumberToObject(j, "autoUpdate",
                           c.auto_update ? c.auto_update - 1 : 1);
+  cJSON_AddNumberToObject(j, "ttyHeader", c.tty_header == TTY_HEADER_CITY);
   cJSON_AddStringToObject(j, "city", c.city);
   cJSON_AddStringToObject(j, "ssid", c.ssid);
   cJSON *a = cJSON_AddArrayToObject(j, "modules");

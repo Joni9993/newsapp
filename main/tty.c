@@ -3,7 +3,9 @@
 #include "gfx.h"
 #include "net.h"
 #include "ota.h"
+#include "config.h"
 #include "sources.h"
+#include "text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -139,18 +141,46 @@ static void draw_rain(int level) {
 
 /* ------------------------------------------------------------ Leisten */
 
+/* kleines Wetter-Symbol (wie in der Eulen-Ansicht, einfarbig dunkel auf der Leiste) */
+static void mini_weather(int x, int y, int code) {
+  if (code <= 1) {
+    gfx_fill(x + 1, y, 3, 5, BG);
+    gfx_fill(x, y + 1, 5, 3, BG);
+    return;
+  }
+  gfx_fill(x, y + 1, 6, 3, BG);
+  gfx_fill(x + 1, y, 3, 1, BG);
+  if (code >= 51) {
+    gfx_px(x + 1, y + 4, BG);
+    gfx_px(x + 4, y + 4, BG);
+  }
+}
+
 static void topbar(bool paused) {
   if (!band_hit(0, 7))
     return;
   gfx_fill(0, 0, GW, 7, HI);
+  bool city = config_tty_header();
   char ip[32];
   bool on = net_connected();
-  if (on)
+  if (city)
+    text_simplify(ip, 14, sources_city()[0] ? sources_city() : "...");
+  else if (on)
     net_address(ip, sizeof ip);
   else
     snprintf(ip, sizeof ip, "%s",
              net_setup_active() ? "AP 192.168.4.1" : "KEIN WLAN");
   gfx_text_plain(2, 1, ip, BG);
+  int x = GW - 2;
+  if (city && wx.valid) {   /* ganz rechts: Temperatur, davor das Symbol */
+    char tb[12];
+    snprintf(tb, sizeof tb, "%.0fC", wx.temp);
+    x -= gfx_text_w(tb);
+    gfx_text_plain(x, 1, tb, BG);
+    x -= 8;
+    mini_weather(x, 1, wx.code);
+    x -= 3;
+  }
   char t[8] = "--:--";
   if (net_time_valid()) {
     time_t now = time(NULL);
@@ -160,12 +190,15 @@ static void topbar(bool paused) {
     if ((esp_timer_get_time() / 500000) & 1)
       t[2] = ' ';   /* blinkender Doppelpunkt */
   }
-  int x = GW - 2 - gfx_text_w(t);
+  x -= gfx_text_w(t);
   gfx_text_plain(x, 1, t, BG);
-  const char *st = paused ? "[||]" : on ? "[ON]" : "[OFF]";
-  int sx = x - 4 - gfx_text_w(st);
-  gfx_text_plain(sx, 1, st, BG);
-  /* Update-Hinweis: 5x6 Download-Symbol links neben dem Status (1 s an, 0,5 s aus), wenn Platz ist */
+  int sx = x;   /* linke Kante des Rechtsblocks */
+  if (!city) {
+    const char *st = paused ? "[||]" : on ? "[ON]" : "[OFF]";
+    sx = x - 4 - gfx_text_w(st);
+    gfx_text_plain(sx, 1, st, BG);
+  }
+  /* Update-Hinweis: 5x6 Download-Symbol links daneben (1 s an, 0,5 s aus), wenn Platz ist */
   int ax = sx - 6;
   if (ota_update_available(NULL, 0) && ax > 2 + gfx_text_w(ip) + 1 &&
       esp_timer_get_time() % 1500000 < 1000000) {

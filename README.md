@@ -189,6 +189,10 @@ als Alternative. Während Upload und Installation pausieren die
 Datenquellen, damit Speicher und Netz frei bleiben; die Suche läuft im
 Hintergrund (Ergebnis über `GET /api/v1/ota/status`).
 
+**Terminal-Kopfzeile:** Im Tab **disp** wählbar (JSON-Feld `ttyHeader`, gespeichert mit
+`:w save`): `0` = IP und Status (Standard), `1` = Ort links, rechts Uhrzeit, Wetter-Symbol
+und Temperatur wie in der Eulen-Ansicht.
+
 **Automatische Updates:** Im Tab **fw** wählbar (JSON-Feld `autoUpdate`,
 gespeichert mit `:w save`):
 
