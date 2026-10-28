@@ -671,12 +671,12 @@ static void draw_panel(void)
         snprintf(b, sizeof b, "WIND %.0f KM/H", wx.wind);
         gfx_text(x + 27, y + 31, b, RGB(180, 190, 210));
         for (int d = 0; d < 2; d++) {
-            int cx = x + 4 + d * 50, cy = y + 38;
+            int cx = x + 4 + d * 48, cy = y + 38;   /* rechter Block endet innerhalb der Tafel */
             gfx_text(cx, cy, d ? "MORGEN" : "HEUTE", RGB(150, 200, 255));
-            snprintf(b, sizeof b, "%.0f-%.0fC", wx.tmin[d], wx.tmax[d]);
+            snprintf(b, sizeof b, "%.0f-%.0f" TEXT_DEG "C", wx.tmin[d], wx.tmax[d]);
             gfx_text(cx, cy + 6, b, C_WHITE);
-            int bar = wx.rain[d] * 16 / 100;
-            gfx_fill(cx + 30, cy + 7, 17, 3, RGB(40, 46, 70));
+            int bar = wx.rain[d] * 13 / 100;
+            gfx_fill(cx + 30, cy + 7, 14, 3, RGB(40, 46, 70));
             gfx_fill(cx + 30, cy + 7, bar, 3, RGB(110, 170, 255));
             snprintf(b, sizeof b, "%d%%", wx.rain[d]);
             gfx_text(cx + 30, cy, b, RGB(110, 170, 255));
