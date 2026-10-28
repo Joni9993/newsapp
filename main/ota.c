@@ -487,12 +487,16 @@ static int resolve_url(const char *url, char *out, size_t n) {
 }
 
 /* ------------------------------------------- Download in Teilen (Range) */
-/* Ein langer TLS-Strom (1,3 MB) scheitert auf dem Board an Heap-Fragmentierung
- * oder Verbindungsabbruechen. Darum: Teile zu 64 KB, jeder mit eigener
- * Verbindung und Range-Anfrage; ein misslungener Teil wird ab dem letzten
- * geschriebenen Byte wiederholt. */
-#define PART 65536
-#define RETRIES 4
+/* Ein langer TLS-Strom scheitert auf dem Board: mbedTLS belegt je TLS-Record
+ * einen Puffer in Recordlaenge, und der Server schickt 16-KB-Records - dafuer
+ * gibt es im fragmentierten Heap keinen zusammenhaengenden Block mehr
+ * ("alloc(16749 bytes) failed"). Darum Range-Anfragen zu 8 KB (Records
+ * <= ~8,5 KB) ueber eine einzige keep-alive-Verbindung; ein misslungener Teil
+ * wird nach neuem Verbindungsaufbau ab dem letzten geschriebenen Byte
+ * wiederholt. */
+#define PART 8192
+#define RETRIES 4  /* pro Teil */
+#define MAX_RETRIES 20 /* insgesamt */
 #define HEAD_NEED                                                           \
   (sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) +        \
    sizeof(esp_app_desc_t))
@@ -538,6 +542,8 @@ typedef struct {
   uint8_t *buf;     /* CHUNK Bytes */
   const esp_partition_t *part;
   esp_ota_handle_t h;
+  esp_http_client_handle_t c; /* wiederverwendete Verbindung */
+  cr_t cr;
   bool begun;
   size_t off, total; /* geschriebene Bytes, Gesamtgroesse (0 = unbekannt) */
   char why[40];      /* kurze Ursache des letzten Fehlversuchs */
@@ -601,6 +607,57 @@ static int start_ota(dl_t *d) {
   return DL_OK;
 }
 
+/* Verbindung abbauen (nach Fehler oder neuer Adresse); bei Erfolg bleibt sie
+ * fuer den naechsten Teil offen (keep-alive, kein neuer TLS-Handshake) */
+static void drop_client(dl_t *d) {
+  if (d->c) {
+    esp_http_client_close(d->c);
+    esp_http_client_cleanup(d->c);
+    d->c = NULL;
+  }
+}
+
+/* Range-Anfrage senden und Kopf lesen. Auf einer wiederverwendeten
+ * Verbindung, die der Server inzwischen geschlossen hat, wird einmal sofort
+ * neu verbunden (zaehlt nicht als Fehlversuch). */
+static esp_err_t open_range(dl_t *d, const char *range, int64_t *clen, int *status) {
+  esp_err_t e = ESP_FAIL;
+  for (int attempt = 0; attempt < 2; attempt++) {
+    bool reused = d->c != NULL;
+    if (!d->c) {
+      esp_http_client_config_t cfg = {.url = d->url,
+                                      .user_agent = "newsboard",
+                                      .crt_bundle_attach = esp_crt_bundle_attach,
+                                      .disable_auto_redirect = true,
+                                      .method = HTTP_METHOD_GET,
+                                      .buffer_size = 4096,
+                                      .buffer_size_tx = 2048,
+                                      .timeout_ms = 15000,
+                                      .keep_alive_enable = true,
+                                      .event_handler = cr_event,
+                                      .user_data = &d->cr};
+      d->c = esp_http_client_init(&cfg);
+      if (!d->c)
+        return ESP_ERR_NO_MEM;
+    }
+    d->cr.seen = false;
+    esp_http_client_set_header(d->c, "Range", range);
+    e = esp_http_client_open(d->c, 0);
+    if (e == ESP_OK) {
+      *clen = esp_http_client_fetch_headers(d->c);
+      if (*clen >= 0) {
+        *status = esp_http_client_get_status_code(d->c);
+        return ESP_OK;
+      }
+      e = ESP_ERR_HTTP_FETCH_HEADER;
+    }
+    drop_client(d);
+    if (!reused)
+      break;
+  }
+  return e;
+}
+
 /* Holt einen Teil ab d->off. Schon geschriebene Bytes bleiben (d->off waechst
  * pro Schreibvorgang), ein Wiederholen setzt dort wieder an. */
 static int get_chunk(dl_t *d) {
@@ -609,36 +666,14 @@ static int get_chunk(dl_t *d) {
     to = d->total - 1;
   char range[40];
   snprintf(range, sizeof range, "bytes=%u-%u", (unsigned)d->off, (unsigned)to);
-  cr_t cr = {0};
-  esp_http_client_config_t cfg = {.url = d->url,
-                                  .user_agent = "newsboard",
-                                  .crt_bundle_attach = esp_crt_bundle_attach,
-                                  .disable_auto_redirect = true,
-                                  .method = HTTP_METHOD_GET,
-                                  .buffer_size = 4096,
-                                  .buffer_size_tx = 2048,
-                                  .timeout_ms = 15000,
-                                  .keep_alive_enable = false,
-                                  .event_handler = cr_event,
-                                  .user_data = &cr};
-  esp_http_client_handle_t c = esp_http_client_init(&cfg);
-  if (!c) {
-    snprintf(d->why, sizeof d->why, "Speicher voll");
-    return DL_RETRY;
-  }
   int rc = DL_RETRY;
   size_t expected = 0, got = 0, fill = 0;
-  esp_http_client_set_header(c, "Range", range);
-  esp_err_t e = esp_http_client_open(c, 0);
+  int64_t clen = 0;
+  int status = 0;
+  esp_err_t e = open_range(d, range, &clen, &status);
   if (e != ESP_OK) {
     snprintf(d->why, sizeof d->why, "%s", esp_err_to_name(e));
-    goto out;
-  }
-  int64_t clen = esp_http_client_fetch_headers(c);
-  int status = esp_http_client_get_status_code(c);
-  if (clen < 0) {
-    snprintf(d->why, sizeof d->why, "Antwort unlesbar");
-    goto out;
+    return DL_RETRY;
   }
   if (status == 401 || status == 403) {
     snprintf(d->why, sizeof d->why, "HTTP %d", status);
@@ -647,7 +682,7 @@ static int get_chunk(dl_t *d) {
   }
   if (status == 206) {
     size_t a, b, t;
-    if (!cr.seen || !parse_crange(cr.val, &a, &b, &t) || a != d->off || b > to) {
+    if (!d->cr.seen || !parse_crange(d->cr.val, &a, &b, &t) || a != d->off || b > to) {
       snprintf(d->why, sizeof d->why, "Content-Range ungültig");
       goto out;
     }
@@ -671,7 +706,7 @@ static int get_chunk(dl_t *d) {
     size_t room = CHUNK - fill;
     if (room > expected - got)
       room = expected - got;
-    int k = esp_http_client_read(c, (char *)d->buf + fill, (int)room);
+    int k = esp_http_client_read(d->c, (char *)d->buf + fill, (int)room);
     if (k <= 0) {
       snprintf(d->why, sizeof d->why, k < 0 ? "Lesefehler" : "Verbindung beendet");
       goto out;
@@ -702,20 +737,25 @@ static int get_chunk(dl_t *d) {
     rc = DL_FATAL;
     goto out;
   }
-  rc = DL_OK;
+  return DL_OK; /* Verbindung bleibt fuer den naechsten Teil offen */
 out:
-  esp_http_client_close(c);
-  esp_http_client_cleanup(c);
+  drop_client(d);
   return rc;
 }
 
 /* true = alles geschrieben; sonst Fehlertext in msg */
 static bool dl_run(dl_t *d, char *msg, size_t mn) {
-  int fails = 0;
+  int fails = 0, retries = 0;
   bool reauth = false, dead = false;
+  d->why[0] = 0;
+  ESP_LOGI(TAG, "Download startet, Heap %u, groesster Block %u",
+           (unsigned)esp_get_free_heap_size(),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
   for (;;) {
-    if (d->total && d->off >= d->total)
+    if (d->total && d->off >= d->total) {
+      drop_client(d);
       return true;
+    }
     size_t before = d->off;
     int r = get_chunk(d);
     if (r == DL_OK) {
@@ -737,7 +777,7 @@ static bool dl_run(dl_t *d, char *msg, size_t mn) {
     }
     fails = d->off > before ? 1 : fails + 1; /* Fortschritt zaehlt als Neustart */
     log_heap("Teil fehlgeschlagen", d);
-    if (dead || fails > RETRIES) {
+    if (dead || fails > RETRIES || ++retries > MAX_RETRIES) {
       if (d->total)
         snprintf(msg, mn, "Download abgebrochen bei %u von %u KB (%s)",
                  (unsigned)(d->off / 1024), (unsigned)(d->total / 1024), d->why);
@@ -831,6 +871,7 @@ static void online_task(void *arg) {
 
 fail:
   ESP_LOGW(TAG, "Online-Update fehlgeschlagen: %s", msg);
+  drop_client(d);
   if (d->begun)
     esp_ota_abort(d->h);
   free(d->url);
