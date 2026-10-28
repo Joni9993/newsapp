@@ -4,12 +4,13 @@
 #include "net.h"
 #include "sources.h"
 #include "esp_crt_bundle.h"
-#include "esp_https_ota.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_app_desc.h"
 #include "esp_app_format.h"
+#include "esp_heap_caps.h"
+#include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
@@ -485,6 +486,309 @@ static int resolve_url(const char *url, char *out, size_t n) {
   return status;
 }
 
+/* ------------------------------------------- Download in Teilen (Range) */
+/* Ein langer TLS-Strom scheitert auf dem Board: mbedTLS belegt je TLS-Record
+ * einen Puffer in Recordlaenge, und der Server schickt 16-KB-Records - dafuer
+ * gibt es im fragmentierten Heap keinen zusammenhaengenden Block mehr
+ * ("alloc(16749 bytes) failed"). Darum Range-Anfragen zu 8 KB (Records
+ * <= ~8,5 KB) ueber eine einzige keep-alive-Verbindung; ein misslungener Teil
+ * wird nach neuem Verbindungsaufbau ab dem letzten geschriebenen Byte
+ * wiederholt. */
+#define PART 8192
+#define RETRIES 4  /* pro Teil */
+#define MAX_RETRIES 20 /* insgesamt */
+#define HEAD_NEED                                                           \
+  (sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) +        \
+   sizeof(esp_app_desc_t))
+
+typedef struct {
+  char val[64];
+  bool seen;
+} cr_t;
+static esp_err_t cr_event(esp_http_client_event_t *e) {
+  if (e->event_id == HTTP_EVENT_ON_HEADER && e->header_key && e->header_value &&
+      !strcasecmp(e->header_key, "Content-Range")) {
+    cr_t *c = e->user_data;
+    snprintf(c->val, sizeof c->val, "%s", e->header_value);
+    c->seen = true;
+  }
+  return ESP_OK;
+}
+/* "bytes 0-65535/1359632" */
+static bool parse_crange(const char *v, size_t *a, size_t *b, size_t *t) {
+  if (strncasecmp(v, "bytes ", 6))
+    return false;
+  char *e;
+  unsigned long x = strtoul(v + 6, &e, 10);
+  if (*e != '-')
+    return false;
+  unsigned long y = strtoul(e + 1, &e, 10);
+  if (*e != '/')
+    return false;
+  unsigned long z = strtoul(e + 1, &e, 10);
+  if (!z || y < x || y >= z)
+    return false;
+  *a = x;
+  *b = y;
+  *t = z;
+  return true;
+}
+
+enum { DL_OK, DL_RETRY, DL_AUTH, DL_FATAL };
+typedef struct {
+  char *url;        /* signierte Adresse, wird bei 401/403 erneuert */
+  size_t urlcap;
+  const char *orig; /* GitHub-Adresse fuer resolve_url */
+  uint8_t *buf;     /* CHUNK Bytes */
+  const esp_partition_t *part;
+  esp_ota_handle_t h;
+  esp_http_client_handle_t c; /* wiederverwendete Verbindung */
+  cr_t cr;
+  bool begun;
+  size_t off, total; /* geschriebene Bytes, Gesamtgroesse (0 = unbekannt) */
+  char why[40];      /* kurze Ursache des letzten Fehlversuchs */
+  char msg[sizeof st.error]; /* endgueltiger Fehler (DL_FATAL) */
+} dl_t;
+
+static void log_heap(const char *what, const dl_t *d) {
+  ESP_LOGW(TAG, "%s bei %u/%u: %s, Heap %u, groesster Block %u", what,
+           (unsigned)d->off, (unsigned)d->total, d->why,
+           (unsigned)esp_get_free_heap_size(),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+}
+static void set_progress(const dl_t *d) {
+  if (!d->total)
+    return;
+  lk();
+  st.progress = (int)((uint64_t)d->off * 100 / d->total);
+  ul();
+}
+
+/* Anfang pruefen (Magic, Projekt, Display-Variante, Groesse), dann esp_ota_begin */
+static int start_ota(dl_t *d) {
+  esp_app_desc_t desc;
+  memcpy(&desc,
+         d->buf + sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t),
+         sizeof desc);
+  const esp_app_desc_t *self = esp_app_get_description();
+  const char *m = NULL;
+  if (d->buf[0] != ESP_IMAGE_HEADER_MAGIC || desc.magic_word != ESP_APP_DESC_MAGIC_WORD)
+    m = "Das ist keine ESP32-Firmware (.bin)";
+  else if (strncmp(desc.project_name, self->project_name, sizeof desc.project_name))
+    m = "Falsche Firmware: gehört nicht zum Nachrichtenbote";
+  else if (image_legacy(&desc) != RUN_LEGACY)
+    m = "Falsche Display-Variante in der Download-Datei";
+  else if (d->total > d->part->size)
+    m = "Firmware ist zu groß für die Update-Partition";
+  if (m) {
+    snprintf(d->msg, sizeof d->msg, "%s", m);
+    return DL_FATAL;
+  }
+  /* Laufendes Image noch PENDING_VERIFY? Dann verweigert esp_ota_begin
+   * (ESP_ERR_OTA_ROLLBACK_INVALID_STATE): vorher bestaetigen */
+  {
+    const esp_partition_t *run = esp_ota_get_running_partition();
+    esp_ota_img_states_t ist;
+    if (run && esp_ota_get_state_partition(run, &ist) == ESP_OK &&
+        ist == ESP_OTA_IMG_PENDING_VERIFY) {
+      ESP_LOGW(TAG, "laufendes Image noch PENDING_VERIFY, bestaetige vor Update");
+      ota_mark_valid();
+    }
+  }
+  esp_err_t e = esp_ota_begin(d->part, OTA_WITH_SEQUENTIAL_WRITES, &d->h);
+  if (e != ESP_OK) {
+    ESP_LOGW(TAG, "ota_begin: %s, Heap %u", esp_err_to_name(e),
+             (unsigned)esp_get_free_heap_size());
+    snprintf(d->msg, sizeof d->msg, "Flash-Vorbereitung fehlgeschlagen (%s)",
+             esp_err_to_name(e));
+    return DL_FATAL;
+  }
+  d->begun = true;
+  return DL_OK;
+}
+
+/* Verbindung abbauen (nach Fehler oder neuer Adresse); bei Erfolg bleibt sie
+ * fuer den naechsten Teil offen (keep-alive, kein neuer TLS-Handshake) */
+static void drop_client(dl_t *d) {
+  if (d->c) {
+    esp_http_client_close(d->c);
+    esp_http_client_cleanup(d->c);
+    d->c = NULL;
+  }
+}
+
+/* Range-Anfrage senden und Kopf lesen. Auf einer wiederverwendeten
+ * Verbindung, die der Server inzwischen geschlossen hat, wird einmal sofort
+ * neu verbunden (zaehlt nicht als Fehlversuch). */
+static esp_err_t open_range(dl_t *d, const char *range, int64_t *clen, int *status) {
+  esp_err_t e = ESP_FAIL;
+  for (int attempt = 0; attempt < 2; attempt++) {
+    bool reused = d->c != NULL;
+    if (!d->c) {
+      esp_http_client_config_t cfg = {.url = d->url,
+                                      .user_agent = "newsboard",
+                                      .crt_bundle_attach = esp_crt_bundle_attach,
+                                      .disable_auto_redirect = true,
+                                      .method = HTTP_METHOD_GET,
+                                      .buffer_size = 4096,
+                                      .buffer_size_tx = 2048,
+                                      .timeout_ms = 15000,
+                                      .keep_alive_enable = true,
+                                      .event_handler = cr_event,
+                                      .user_data = &d->cr};
+      d->c = esp_http_client_init(&cfg);
+      if (!d->c)
+        return ESP_ERR_NO_MEM;
+    }
+    d->cr.seen = false;
+    esp_http_client_set_header(d->c, "Range", range);
+    e = esp_http_client_open(d->c, 0);
+    if (e == ESP_OK) {
+      *clen = esp_http_client_fetch_headers(d->c);
+      if (*clen >= 0) {
+        *status = esp_http_client_get_status_code(d->c);
+        return ESP_OK;
+      }
+      e = ESP_ERR_HTTP_FETCH_HEADER;
+    }
+    drop_client(d);
+    if (!reused)
+      break;
+  }
+  return e;
+}
+
+/* Holt einen Teil ab d->off. Schon geschriebene Bytes bleiben (d->off waechst
+ * pro Schreibvorgang), ein Wiederholen setzt dort wieder an. */
+static int get_chunk(dl_t *d) {
+  size_t to = d->off + PART - 1;
+  if (d->total && to > d->total - 1)
+    to = d->total - 1;
+  char range[40];
+  snprintf(range, sizeof range, "bytes=%u-%u", (unsigned)d->off, (unsigned)to);
+  int rc = DL_RETRY;
+  size_t expected = 0, got = 0, fill = 0;
+  int64_t clen = 0;
+  int status = 0;
+  esp_err_t e = open_range(d, range, &clen, &status);
+  if (e != ESP_OK) {
+    snprintf(d->why, sizeof d->why, "%s", esp_err_to_name(e));
+    return DL_RETRY;
+  }
+  if (status == 401 || status == 403) {
+    snprintf(d->why, sizeof d->why, "HTTP %d", status);
+    rc = DL_AUTH;
+    goto out;
+  }
+  if (status == 206) {
+    size_t a, b, t;
+    if (!d->cr.seen || !parse_crange(d->cr.val, &a, &b, &t) || a != d->off || b > to) {
+      snprintf(d->why, sizeof d->why, "Content-Range ungültig");
+      goto out;
+    }
+    if (d->total && t != d->total) {
+      snprintf(d->msg, sizeof d->msg, "Die Download-Datei hat sich während des Downloads geändert");
+      rc = DL_FATAL;
+      goto out;
+    }
+    d->total = t;
+    expected = b - a + 1;
+  } else if (status == 200 && d->off == 0 && clen > 0) {
+    /* Server ignoriert Range: ganzer Body in einem Strom */
+    d->total = (size_t)clen;
+    expected = d->total;
+  } else {
+    snprintf(d->why, sizeof d->why, "HTTP %d", status);
+    goto out;
+  }
+
+  while (got < expected) {
+    size_t room = CHUNK - fill;
+    if (room > expected - got)
+      room = expected - got;
+    int k = esp_http_client_read(d->c, (char *)d->buf + fill, (int)room);
+    if (k <= 0) {
+      snprintf(d->why, sizeof d->why, k < 0 ? "Lesefehler" : "Verbindung beendet");
+      goto out;
+    }
+    got += (size_t)k;
+    fill += (size_t)k;
+    if (!d->begun) {
+      if (fill < HEAD_NEED)
+        continue; /* erst den ganzen Anfang sammeln, noch nichts schreiben */
+      rc = start_ota(d);
+      if (rc != DL_OK)
+        goto out;
+    }
+    e = esp_ota_write(d->h, d->buf, fill);
+    if (e != ESP_OK) {
+      ESP_LOGW(TAG, "ota_write: %s bei %u", esp_err_to_name(e), (unsigned)d->off);
+      snprintf(d->msg, sizeof d->msg, "Schreiben fehlgeschlagen (%s) bei %u KB",
+               esp_err_to_name(e), (unsigned)(d->off / 1024));
+      rc = DL_FATAL;
+      goto out;
+    }
+    d->off += fill;
+    fill = 0;
+    set_progress(d);
+  }
+  if (!d->begun) {
+    snprintf(d->msg, sizeof d->msg, "Download-Datei zu klein für eine Firmware");
+    rc = DL_FATAL;
+    goto out;
+  }
+  return DL_OK; /* Verbindung bleibt fuer den naechsten Teil offen */
+out:
+  drop_client(d);
+  return rc;
+}
+
+/* true = alles geschrieben; sonst Fehlertext in msg */
+static bool dl_run(dl_t *d, char *msg, size_t mn) {
+  int fails = 0, retries = 0;
+  bool reauth = false, dead = false;
+  d->why[0] = 0;
+  ESP_LOGI(TAG, "Download startet, Heap %u, groesster Block %u",
+           (unsigned)esp_get_free_heap_size(),
+           (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+  for (;;) {
+    if (d->total && d->off >= d->total) {
+      drop_client(d);
+      return true;
+    }
+    size_t before = d->off;
+    int r = get_chunk(d);
+    if (r == DL_OK) {
+      fails = 0;
+      continue;
+    }
+    if (r == DL_FATAL) {
+      snprintf(msg, mn, "%s", d->msg);
+      return false;
+    }
+    if (r == DL_AUTH && !reauth) {
+      reauth = true;
+      log_heap("401/403, neue Adresse", d);
+      int rs = resolve_url(d->orig, d->url, d->urlcap);
+      if (rs == 200)
+        continue;
+      snprintf(d->why, sizeof d->why, "Adresse erneuern fehlgeschlagen");
+      dead = true; /* resolve_url hat die Adresse evtl. ueberschrieben */
+    }
+    fails = d->off > before ? 1 : fails + 1; /* Fortschritt zaehlt als Neustart */
+    log_heap("Teil fehlgeschlagen", d);
+    if (dead || fails > RETRIES || ++retries > MAX_RETRIES) {
+      if (d->total)
+        snprintf(msg, mn, "Download abgebrochen bei %u von %u KB (%s)",
+                 (unsigned)(d->off / 1024), (unsigned)(d->total / 1024), d->why);
+      else
+        snprintf(msg, mn, "Download konnte nicht starten (%s)", d->why);
+      return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(2000));
+  }
+}
+
 static void online_task(void *arg) {
   char url[160], tag[sizeof st.latest], msg[sizeof st.error];
   sources_hold();
@@ -496,13 +800,24 @@ static void online_task(void *arg) {
            tag);
   ESP_LOGI(TAG, "Online-Update %s, Heap %u", tag,
            (unsigned)esp_get_free_heap_size());
-  char *final_url = malloc(1536);
-  if (!final_url) {
+  dl_t *d = calloc(1, sizeof *d);
+  if (d) {
+    d->urlcap = 1536;
+    d->url = malloc(d->urlcap);
+    d->buf = malloc(CHUNK);
+  }
+  if (!d || !d->url || !d->buf) {
+    if (d) {
+      free(d->url);
+      free(d->buf);
+    }
+    free(d);
     set_err("Speicher voll");
     vTaskDelete(NULL);
     return;
   }
-  int rs = resolve_url(url, final_url, 1536);
+  d->orig = url;
+  int rs = resolve_url(url, d->url, d->urlcap);
   if (rs != 200) {
     ESP_LOGW(TAG, "resolve: %d, Heap %u", rs, (unsigned)esp_get_free_heap_size());
     if (rs > 0)
@@ -510,87 +825,59 @@ static void online_task(void *arg) {
     else
       snprintf(msg, sizeof msg, "GitHub-Weiterleitung fehlgeschlagen (%s)",
                rs == -2 ? "kein https" : rs == -3 ? "Speicher voll" : "Verbindung");
-    free(final_url);
-    set_err(msg);
-    vTaskDelete(NULL);
-    return;
+    goto fail;
   }
-  esp_http_client_config_t hc = {.url = final_url,
-                                 .user_agent = "newsboard",
-                                 .crt_bundle_attach = esp_crt_bundle_attach,
-                                 .max_redirection_count = 2,
-                                 .buffer_size = 4096,
-                                 .buffer_size_tx = 2048,
-                                 .timeout_ms = 15000,
-                                 .keep_alive_enable = false};
-  esp_https_ota_config_t oc = {.http_config = &hc};
-  esp_https_ota_handle_t h = NULL;
-  esp_err_t e = esp_https_ota_begin(&oc, &h);
-  free(final_url); /* begin kopiert die URL */
-  if (e != ESP_OK) {
-    ESP_LOGW(TAG, "begin: %s, Heap %u", esp_err_to_name(e),
-             (unsigned)esp_get_free_heap_size());
-    if (e == ESP_ERR_NO_MEM) {
-      set_err("Speicher voll");
-    } else {
-      snprintf(msg, sizeof msg, "Download konnte nicht starten (%s)", esp_err_to_name(e));
-      set_err(msg);
-    }
-    vTaskDelete(NULL);
-    return;
-  }
-  esp_app_desc_t desc;
-  e = esp_https_ota_get_img_desc(h, &desc);
-  if (e != ESP_OK) {
-    ESP_LOGW(TAG, "img_desc: %s, Heap %u", esp_err_to_name(e),
-             (unsigned)esp_get_free_heap_size());
-    esp_https_ota_abort(h);
-    snprintf(msg, sizeof msg, "Anfang der Firmware nicht lesbar (%s)", esp_err_to_name(e));
-    set_err(msg);
-    vTaskDelete(NULL);
-    return;
-  }
-  if (strncmp(desc.project_name, esp_app_get_description()->project_name,
-              sizeof desc.project_name)) {
-    ESP_LOGW(TAG, "Projekt '%.32s' passt nicht", desc.project_name);
-    esp_https_ota_abort(h);
-    set_err("Falsche Firmware: gehört nicht zum Nachrichtenbote");
-    vTaskDelete(NULL);
-    return;
+  d->part = esp_ota_get_next_update_partition(NULL);
+  if (!d->part) {
+    snprintf(msg, sizeof msg, "Keine Update-Partition vorhanden (USB-Erstinstallation nötig)");
+    goto fail;
   }
   lk();
   st.state = OTA_DOWNLOADING;
   st.progress = 0;
   ul();
-  while ((e = esp_https_ota_perform(h)) == ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
-    int tot = esp_https_ota_get_image_size(h), got = esp_https_ota_get_image_len_read(h);
-    if (tot > 0) {
-      lk();
-      st.progress = (int)((int64_t)got * 100 / tot);
-      ul();
-    }
+  if (!dl_run(d, msg, sizeof msg))
+    goto fail;
+  if (!d->begun) { /* kann nicht sein, sicherheitshalber */
+    snprintf(msg, sizeof msg, "Download abgebrochen oder unvollständig");
+    goto fail;
   }
-  if (e != ESP_OK || !esp_https_ota_is_complete_data_received(h)) {
-    ESP_LOGW(TAG, "perform: %s", esp_err_to_name(e));
-    esp_https_ota_abort(h);
-    set_err("Download abgebrochen oder unvollständig");
-    vTaskDelete(NULL);
-    return;
-  }
-  e = esp_https_ota_finish(h);
+  d->begun = false; /* esp_ota_end gibt das Handle in jedem Fall frei */
+  esp_err_t e = esp_ota_end(d->h);
   if (e != ESP_OK) {
-    ESP_LOGW(TAG, "finish: %s", esp_err_to_name(e));
-    set_err(e == ESP_ERR_OTA_VALIDATE_FAILED ? "Firmware-Image ungültig (Prüfsumme)"
+    ESP_LOGW(TAG, "ota_end: %s", esp_err_to_name(e));
+    snprintf(msg, sizeof msg, "%s",
+             e == ESP_ERR_OTA_VALIDATE_FAILED ? "Firmware-Image ungültig (Prüfsumme)"
                                               : "Update konnte nicht abgeschlossen werden");
-    vTaskDelete(NULL);
-    return;
+    goto fail;
   }
+  e = esp_ota_set_boot_partition(d->part);
+  if (e != ESP_OK) {
+    ESP_LOGW(TAG, "set_boot: %s", esp_err_to_name(e));
+    snprintf(msg, sizeof msg, "Bootpartition konnte nicht umgestellt werden");
+    goto fail;
+  }
+  free(d->url);
+  free(d->buf);
+  free(d);
   lk();
   st.state = OTA_DONE;
   st.progress = 100;
   ul();
   ESP_LOGI(TAG, "Online-Update ok, Neustart");
   restart_soon(); /* busy bleibt true */
+  vTaskDelete(NULL);
+  return;
+
+fail:
+  ESP_LOGW(TAG, "Online-Update fehlgeschlagen: %s", msg);
+  drop_client(d);
+  if (d->begun)
+    esp_ota_abort(d->h);
+  free(d->url);
+  free(d->buf);
+  free(d);
+  set_err(msg);
   vTaskDelete(NULL);
 }
 
