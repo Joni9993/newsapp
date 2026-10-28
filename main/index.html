@@ -147,11 +147,13 @@
 <section id="firmware" class="tab" hidden>
 <h2>&gt; firmware</h2>
 <dl><dt>version</dt><dd id="fwVersion">-</dd><dt>partition</dt><dd id="fwPartition">-</dd></dl>
+<p id="fwAuto" class="out ok"></p>
+<label><span>Automatische Updates</span><select id="autoUpdate"><option value="0">Aus</option><option value="1">Prüfen und Hinweis</option><option value="2">Nachts installieren</option></select></label>
 <div class="line"><button class="go" id="fwCheck" type="button">Nach Update suchen</button><button class="go" id="fwInstall" type="button" hidden>Installieren</button></div>
 <p id="fwOnline" class="out"></p>
 <form id="fwForm">
 <label><span>neue firmware (.bin)</span><input id="fwFile" type="file" accept=".bin,application/octet-stream"></label>
-<div class="line"><button class="go" id="fwGo">Update installieren</button></div>
+<div class="line"><button class="go" id="fwGo">Update installieren</button><label class="chk"><input type="checkbox" id="fwForce">Variante nicht prüfen</label></div>
 <progress id="fwBar" max="100" value="0" hidden></progress>
 <p id="fwStatus" class="out"></p>
 </form>
@@ -161,7 +163,9 @@
  2. hier die datei wählen → "Update installieren"
  3. board schreibt, startet neu (ca. 30 s), seite meldet sich
 // einstellungen bleiben erhalten · strom nicht trennen
-// startet die neue version nicht, rollt das board selbst zurück.</pre>
+// startet die neue version nicht, rollt das board selbst zurück.
+// datei für die falsche anzeige (standard / altes 2"-panel) wird
+// abgelehnt; "variante nicht prüfen" überspringt das (nur für profis).</pre>
 </section>
 
 <footer class="status"><span class="mode">-- NORMAL --</span><span id="saveHint">synced</span><span class="keys dim">1-6 tabs · ctrl+s save</span><button class="go" id="save">:w save</button></footer>

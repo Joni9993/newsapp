@@ -172,6 +172,12 @@ liegt unverändert an `0x9000`. Danach geht alles über WLAN.
 Es werden nur Images mit passendem Projektnamen akzeptiert. Die Firmware wird
 beim Hochladen auf Größe und Prüfsumme kontrolliert.
 
+**Varianten-Schutz:** Die Version der Legacy-Builds endet auf `-legacy` (CI und
+lokal mit `NEWSBOARD_LEGACY_PANEL`). Der Upload lehnt eine Datei für die falsche
+Anzeige ab („Falsche Display-Variante: …“). Der Haken **Variante nicht prüfen**
+neben dem Upload hängt `?force=1` an die Anfrage und überspringt diese Prüfung –
+nur für Sonderfälle. Das Online-Update wählt die passende Datei selbst.
+
 **Online-Update:** Im Tab **fw** auf **Nach Update suchen** tippen. Das Board
 fragt GitHub nach dem neuesten Release von `Joni9993/newsapp` und zeigt die
 Version. Mit **Installieren** lädt es die passende Datei selbst herunter
@@ -179,7 +185,18 @@ Version. Mit **Installieren** lädt es die passende Datei selbst herunter
 flasht sie und startet neu. Voraussetzungen: das Repo ist **öffentlich**
 (solange es privat ist, meldet das Board „Kein öffentliches Release gefunden“),
 das Board hat Internet und eine synchrone Uhrzeit. Der manuelle Upload bleibt
-als Alternative.
+als Alternative. Während Upload und Installation pausieren die
+Datenquellen, damit Speicher und Netz frei bleiben; die Suche läuft im
+Hintergrund (Ergebnis über `GET /api/v1/ota/status`).
+
+**Automatische Updates:** Im Tab **fw** wählbar (JSON-Feld `autoUpdate`,
+gespeichert mit `:w save`):
+
+| Wert | Modus | Verhalten |
+| --- | --- | --- |
+| 0 | Aus | keine automatische Suche |
+| 1 | Prüfen und Hinweis (Standard) | erste Suche ca. 3 min nach Start (sobald Netz und Uhrzeit da sind), danach alle 24 h; ein neueres Release zeigt ein kleines Pfeil-Symbol in der Kopfzeile (Eule und Terminal, wenn Platz ist) und „Update verfügbar“ im Tab **fw** |
+| 2 | Nachts installieren | wie 1, zusätzlich Suche im Fenster 03:00–04:59 Ortszeit und automatische Installation. Ist das Board beschäftigt oder der Speicher knapp, gibt es den nächsten Versuch erst in der nächsten Nacht. Jede Version wird nachts nur einmal versucht (kein Dauer-Neuversuch nach einem Rollback), und Entwickler-Builds (z. B. `v1.5-3-gabc123`) werden nie automatisch überschrieben |
 
 **Rollback:** Eine neu installierte Firmware muss sich nach dem Start selbst
 bestätigen (sobald der Webserver läuft). Startet sie nicht oder stürzt vorher

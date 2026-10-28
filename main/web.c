@@ -232,6 +232,13 @@ static esp_err_t notify_handler(httpd_req_t *r) {
   free(b);
   return e;
 }
+/* updateAvailable/updateTag: Ergebnis der automatischen (oder letzten) Pruefung */
+static void update_fields(cJSON *o) {
+  char tag[24] = "";
+  bool a = ota_update_available(tag, sizeof tag);
+  cJSON_AddBoolToObject(o, "updateAvailable", a);
+  cJSON_AddStringToObject(o, "updateTag", tag);
+}
 static esp_err_t get(httpd_req_t *r) {
   const char *u = r->uri;
   if (!strcmp(u, "/") || !strcmp(u, "/index.html")) {
@@ -298,6 +305,11 @@ static esp_err_t get(httpd_req_t *r) {
     cJSON_AddNumberToObject(o, "progress", st.progress);
     cJSON_AddStringToObject(o, "error", st.error);
     cJSON_AddStringToObject(o, "latest", st.latest);
+    cJSON_AddStringToObject(o, "current", esp_app_get_description()->version);
+    cJSON_AddBoolToObject(o, "upToDate",
+                          st.latest[0] && ota_online_up_to_date(st.latest));
+    cJSON_AddStringToObject(o, "asset", ota_online_asset());
+    update_fields(o);
     return json(r, o);
   }
   if (!strcmp(u, "/api/v1/modules"))
@@ -312,6 +324,7 @@ static esp_err_t get(httpd_req_t *r) {
     cJSON_AddNumberToObject(o, "largestHeapBlock",
                             heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(o, "uptime", esp_timer_get_time() / 1000000);
+    update_fields(o);
     static const char *const resets[] = {
         "?",        "power-on", "extern", "software", "PANIC",
         "int-wdt",  "task-wdt", "wdt",    "deepsleep", "brownout", "sdio"};
@@ -375,22 +388,16 @@ static esp_err_t post(httpd_req_t *r) {
   if (!authorized(r))
     return error(r, "401 Unauthorized", "Bitte erneut koppeln");
   /* Firmware-Upload streamt den Body selbst: vor body() (max. 8 KB) abfangen */
-  if (!strcmp(u, "/api/v1/ota"))
+  if (!strncmp(u, "/api/v1/ota", 11) && (!u[11] || u[11] == '?'))
     return ota_upload(r);
   if (!strcmp(u, "/api/v1/ota/check")) {
+    /* Pruefung laeuft im Hintergrund, Ergebnis kommt ueber /ota/status */
     char err[96];
-    if (ota_online_check(err, sizeof err) != ESP_OK)
-      return error(r, "502 Bad Gateway", err);
-    ota_online_t st;
-    ota_online_status(&st);
-    char cur[32];
-    snprintf(cur, sizeof cur, "%s", esp_app_get_description()->version);
-    cJSON *o = cJSON_CreateObject();
-    cJSON_AddStringToObject(o, "latest", st.latest);
-    cJSON_AddStringToObject(o, "current", cur);
-    cJSON_AddBoolToObject(o, "upToDate", ota_online_up_to_date(st.latest));
-    cJSON_AddStringToObject(o, "asset", ota_online_asset());
-    return json(r, o);
+    esp_err_t e = ota_online_check_start(err, sizeof err);
+    if (e == ESP_OK)
+      return ok(r);
+    return error(r, e == ESP_ERR_INVALID_STATE ? "409 Conflict"
+                                                : "503 Service Unavailable", err);
   }
   if (!strcmp(u, "/api/v1/ota/online")) {
     char err[96], tag[24] = "";

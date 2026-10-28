@@ -1,5 +1,8 @@
 #include "ota.h"
+#include "nvs.h"
+#include "config.h"
 #include "net.h"
+#include "sources.h"
 #include "esp_crt_bundle.h"
 #include "esp_https_ota.h"
 #include "freertos/FreeRTOS.h"
@@ -14,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define TAG "ota"
 /* Heap ist knapp (~150 KB): nur ein kleiner Puffer, nie das ganze Image */
@@ -26,17 +30,36 @@
 #else
 #define OTA_ASSET "newsboard.bin"
 #endif
+#ifdef LCD_LEGACY_PANEL
+#define RUN_LEGACY true
+#else
+#define RUN_LEGACY false
+#endif
 #define MIN_HEAP (60 * 1024)
 
 static volatile bool busy;
 static ota_online_t st; /* Zustand, per lock geschuetzt */
 static SemaphoreHandle_t lock;
+/* Ergebnis der letzten erfolgreichen Pruefung: gibt es ein neueres Release? */
+static volatile bool update_avail;
+static char update_tag[sizeof st.latest]; /* per lock geschuetzt */
+/* Naechste automatische Pruefung in Sekunden seit Start, 0 = noch nicht gesetzt */
+static volatile int32_t next_check;
 static void lk(void) {
   if (!lock)
     lock = xSemaphoreCreateMutex();
   xSemaphoreTake(lock, portMAX_DELAY);
 }
 static void ul(void) { xSemaphoreGive(lock); }
+
+/* Quellen anhalten und bis ~20 s warten, bis der laufende Abruf fertig ist:
+ * so teilen sich Update und Quellen nicht Heap und Netz. Bei Fehler wieder
+ * mit sources_pause(false) freigeben; nach Erfolg startet das Board neu. */
+static void sources_hold(void) {
+  sources_pause(true);
+  for (int i = 0; i < 200 && !sources_idle(); i++)
+    vTaskDelay(pdMS_TO_TICKS(100));
+}
 
 const char *ota_partition_label(void) {
   const esp_partition_t *p = esp_ota_get_running_partition();
@@ -101,6 +124,20 @@ static void drain(httpd_req_t *r, char *buf, size_t left) {
   }
 }
 
+/* Version endet auf "-legacy" -> Image fuer das alte 2"-Panel */
+static bool image_legacy(const esp_app_desc_t *d) {
+  size_t n = strnlen(d->version, sizeof d->version);
+  return n >= 7 && !memcmp(d->version + n - 7, "-legacy", 7);
+}
+
+/* ?force=1: Display-Variante nicht pruefen */
+static bool force_requested(httpd_req_t *r) {
+  char q[64], v[8];
+  return httpd_req_get_url_query_str(r, q, sizeof q) == ESP_OK &&
+         httpd_query_key_value(q, "force", v, sizeof v) == ESP_OK &&
+         !strcmp(v, "1");
+}
+
 esp_err_t ota_upload(httpd_req_t *r) {
   const size_t total = r->content_len;
   const size_t need = sizeof(esp_image_header_t) +
@@ -155,7 +192,14 @@ esp_err_t ota_upload(httpd_req_t *r) {
     msg = "Falsche Firmware: gehört nicht zum Nachrichtenbote";
     goto fail;
   }
+  if (image_legacy(&desc) != RUN_LEGACY && !force_requested(r)) {
+    msg = image_legacy(&desc)
+              ? "Falsche Display-Variante: Datei ist für altes 2\\\"-Panel"
+              : "Falsche Display-Variante: Datei ist für Standard-Display";
+    goto fail;
+  }
   discard = false;
+  sources_hold();
   ESP_LOGI(TAG, "Update %s -> %s (%u Bytes) nach %s", self->version,
            desc.version, (unsigned)total, part->label);
 
@@ -210,6 +254,7 @@ esp_err_t ota_upload(httpd_req_t *r) {
 
 fail:
   ESP_LOGW(TAG, "Update abgelehnt: %s", msg);
+  sources_pause(false);
   if (begun)
     esp_ota_abort(h);
   if (discard)
@@ -230,6 +275,7 @@ static void set_err(const char *m) {
   st.state = OTA_ERROR;
   snprintf(st.error, sizeof st.error, "%s", m);
   ul();
+  sources_pause(false);
   busy = false;
 }
 static void run_version(char *out, size_t n) {
@@ -237,6 +283,23 @@ static void run_version(char *out, size_t n) {
   char *l = strstr(out, "-legacy");
   if (l)
     *l = 0;
+}
+
+/* Ist tag (z. B. "v1.6") neuer als die laufende Version? Lassen sich beide
+ * nicht als Versionsnummer lesen, zaehlt "anders" als neuer. */
+static bool newer(const char *tag) {
+  char cur[32];
+  run_version(cur, sizeof cur);
+  int a[3] = {0}, b[3] = {0};
+  const char *t = tag + (*tag == 'v'), *c = cur + (cur[0] == 'v');
+  int na = sscanf(t, "%d.%d.%d", &a[0], &a[1], &a[2]);
+  int nb = sscanf(c, "%d.%d.%d", &b[0], &b[1], &b[2]);
+  if (na < 2 || nb < 2)
+    return strcmp(tag, cur) != 0;
+  for (int i = 0; i < 3; i++)
+    if (a[i] != b[i])
+      return a[i] > b[i];
+  return false;
 }
 
 typedef struct {
@@ -266,36 +329,31 @@ static bool scan_cb(const char *d, size_t n, void *ctx) {
   return s->n < sizeof s->buf - 1;
 }
 
-esp_err_t ota_online_check(char *err, size_t en) {
-  if (busy) {
-    snprintf(err, en, "Es läuft bereits ein Update");
-    return ESP_FAIL;
-  }
-  scan_t *s = calloc(1, sizeof *s);
-  if (!s) {
-    snprintf(err, en, "Speicher voll");
-    return ESP_ERR_NO_MEM;
-  }
-  busy = true; /* kein Install waehrend der Pruefung */
-  lk();
-  st.state = OTA_CHECKING;
-  st.error[0] = 0;
-  ul();
-  int c = net_get_ex("https://api.github.com/repos/" OTA_REPO "/releases/latest",
-                     scan_cb, s, 64 * 1024, 20);
+/* Eigentliche Pruefung; busy ist schon gesetzt und wird am Ende geloescht */
+static void check_run(void) {
   const char *m = NULL;
-  if (c == -1)
-    m = "Keine Verbindung zu GitHub (Internet?)";
-  else if (c == -2)
-    m = "Uhrzeit noch nicht synchron, bitte später erneut versuchen";
-  else if (c == -3 || (c == 200 && !s->found))
-    m = "Unerwartete Antwort von GitHub";
-  else if (c == 404)
-    m = "Kein öffentliches Release gefunden (Repo privat?)";
-  else if (c == 403 || c == 429)
-    m = "GitHub-Abfragelimit erreicht, später erneut versuchen";
-  else if (c != 200)
-    m = "GitHub-Abfrage fehlgeschlagen";
+  scan_t *s = calloc(1, sizeof *s);
+  int c = 0;
+  if (!s) {
+    m = "Speicher voll";
+  } else if (esp_get_free_heap_size() < MIN_HEAP) {
+    m = "Zu wenig freier Speicher, bitte kurz warten und erneut versuchen";
+  } else {
+    c = net_get_ex("https://api.github.com/repos/" OTA_REPO "/releases/latest",
+                   scan_cb, s, 64 * 1024, 20);
+    if (c == -1)
+      m = "Keine Verbindung zu GitHub (Internet?)";
+    else if (c == -2)
+      m = "Uhrzeit noch nicht synchron, bitte später erneut versuchen";
+    else if (c == -3 || (c == 200 && !s->found))
+      m = "Unerwartete Antwort von GitHub";
+    else if (c == 404)
+      m = "Kein öffentliches Release gefunden (Repo privat?)";
+    else if (c == 403 || c == 429)
+      m = "GitHub-Abfragelimit erreicht, später erneut versuchen";
+    else if (c != 200)
+      m = "GitHub-Abfrage fehlgeschlagen";
+  }
   lk();
   if (m) {
     st.state = OTA_ERROR;
@@ -303,13 +361,34 @@ esp_err_t ota_online_check(char *err, size_t en) {
   } else {
     st.state = OTA_IDLE;
     snprintf(st.latest, sizeof st.latest, "%s", s->tag);
+    snprintf(update_tag, sizeof update_tag, "%s", s->tag);
+    update_avail = newer(s->tag);
   }
   ul();
-  busy = false;
+  /* naechste Pruefung: nach Erfolg in 24 h, nach Fehler in 1 h */
+  next_check = (int32_t)(esp_timer_get_time() / 1000000) + (m ? 3600 : 86400);
   free(s);
-  if (m) {
-    snprintf(err, en, "%s", m);
-    return ESP_FAIL;
+  busy = false;
+}
+static void check_task(void *arg) {
+  check_run();
+  vTaskDelete(NULL);
+}
+/* Startet die Pruefung im Hintergrund; Ergebnis steht danach in ota_online_status() */
+esp_err_t ota_online_check_start(char *err, size_t en) {
+  if (busy) {
+    snprintf(err, en, "Es läuft bereits ein Update");
+    return ESP_ERR_INVALID_STATE;
+  }
+  busy = true; /* kein Install waehrend der Pruefung */
+  lk();
+  st.state = OTA_CHECKING;
+  st.error[0] = 0;
+  ul();
+  if (xTaskCreate(check_task, "ota_chk", 8192, NULL, 4, NULL) != pdPASS) {
+    set_err("Speicher voll");
+    snprintf(err, en, "Speicher voll");
+    return ESP_ERR_NO_MEM;
   }
   return ESP_OK;
 }
@@ -372,6 +451,7 @@ static int resolve_url(const char *url, char *out, size_t n) {
 
 static void online_task(void *arg) {
   char url[160], tag[sizeof st.latest], msg[sizeof st.error];
+  sources_hold();
   lk();
   snprintf(tag, sizeof tag, "%s", st.latest);
   ul();
@@ -520,4 +600,88 @@ esp_err_t ota_online_start(const char *tag, char *err, size_t en) {
     return ESP_ERR_NO_MEM;
   }
   return ESP_OK;
+}
+
+/* ------------------------------------------------- Automatische Pruefung */
+bool ota_update_available(char *tag, size_t n) {
+  bool a = update_avail;
+  if (a && tag && n) {
+    lk();
+    snprintf(tag, n, "%s", update_tag);
+    ul();
+  }
+  return a;
+}
+
+/* Einmal pro Minute: Modus 1 und 2 pruefen taeglich (erste Pruefung ~3 min
+ * nachdem Uhrzeit und Netz da sind). Modus 2 prueft zusaetzlich einmal pro
+ * Nacht im Fenster 03:00-04:59 und installiert dann ein neueres Release;
+ * scheitert das (z. B. Speicher knapp), gibt es erst in der naechsten Nacht
+ * einen neuen Versuch. */
+/* Nacht-Update nur fuer echte Releases ("v1.5", nicht "v1.5-3-gabc" oder "dev")
+ * und nie zweimal fuer denselben Tag: nach einem Rollback liefe es sonst jede
+ * Nacht erneut. Der zuletzt versuchte Tag liegt im NVS. */
+static bool auto_install_allowed(const char *tag) {
+  const char *v = esp_app_get_description()->version;
+  if (v[0] != 'v' || strstr(v, "-g") || strstr(v, "dirty"))
+    return false;
+  char last[32] = "";
+  size_t n = sizeof last;
+  nvs_handle_t h;
+  if (nvs_open("ota", NVS_READONLY, &h) == ESP_OK) {
+    nvs_get_str(h, "auto_tag", last, &n);
+    nvs_close(h);
+  }
+  return strcmp(last, tag) != 0;
+}
+static void auto_install_remember(const char *tag) {
+  nvs_handle_t h;
+  if (nvs_open("ota", NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_str(h, "auto_tag", tag);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+}
+
+static void auto_task(void *arg) {
+  int night_checked = -1, night_tried = -1;
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(60000));
+    int mode = config_auto_update();
+    if (!mode || busy || !net_connected() || !net_time_valid())
+      continue;
+    int32_t up = (int32_t)(esp_timer_get_time() / 1000000);
+    if (!next_check) {
+      next_check = up + 180;
+      continue;
+    }
+    time_t t = time(NULL);
+    struct tm lt;
+    localtime_r(&t, &lt);
+    int day = lt.tm_year * 400 + lt.tm_yday;
+    bool night = mode == 2 && lt.tm_hour >= 3 && lt.tm_hour < 5;
+    char err[96], tag[sizeof update_tag];
+    if (night && night_checked != day) {
+      night_checked = day;
+      ota_online_check_start(err, sizeof err);
+    } else if (night && night_tried != day && update_avail) {
+      ota_update_available(tag, sizeof tag);
+      if (!auto_install_allowed(tag)) {
+        night_tried = day;
+        continue;
+      }
+      esp_err_t e = ota_online_start(tag, err, sizeof err);
+      if (e == ESP_OK)
+        auto_install_remember(tag);
+      ESP_LOGI(TAG, "Nacht-Update %s: %s", tag, e == ESP_OK ? "gestartet" : err);
+      if (e != ESP_ERR_INVALID_STATE) /* nur "beschaeftigt" wird gleich erneut versucht */
+        night_tried = day;
+    } else if (up >= next_check) {
+      next_check = up + 3600; /* check_run setzt den echten Wert */
+      ota_online_check_start(err, sizeof err);
+    }
+  }
+}
+void ota_auto_start(void) {
+  xTaskCreate(auto_task, "ota_auto", 4096, NULL, 1, NULL);
 }
