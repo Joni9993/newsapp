@@ -332,7 +332,7 @@ static void forecast(int y, const char *name, float lo, float hi,
 }
 static void weather_card(const card_t *card, unsigned ticks) {
   int left = 9999;
-  prompt(9, card->head, &left);
+  prompt(9, config_tty_header() ? "WETTER" : card->head, &left);   /* Ort steht dann schon oben */
   if (!wx.valid) {
     label(3, 22, "KEINE WETTERDATEN", DIM);
     return;
