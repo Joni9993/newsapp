@@ -70,7 +70,6 @@ static block_t R[ROWS];           /* die Zeilen auf dem Schirm, [0] = oben */
 static int nrows;
 static block_t GONE[4];           /* weggeworfene Zeilen, die noch aus dem Bild fliegen */
 static block_t carried;           /* was der Bote gerade traegt */
-static int8_t bob[ROWS];
 
 #define QMAX 40
 static line_t Q[QMAX];            /* Warteschlange der naechsten Zeilen */
@@ -526,7 +525,6 @@ void courier_tick(void)
         GONE[i].x += GONE[i].vx; GONE[i].y += GONE[i].vy; GONE[i].vy += 0.08f;
         if (GONE[i].x > GW + 8 || GONE[i].x + GONE[i].w < -8 || GONE[i].y > GH) GONE[i].st = B_NONE;
     }
-    for (int i = 0; i < ROWS; i++) bob[i] = (int8_t)(sinf(ticks * 0.05f + i * 0.9f) * 0.7f + 0.5f);
     if (T.on && !T.carried && phase != F_PANEL_OUT) {
         T.y += (T.ty - T.y) * SETTLE;
         if (fabsf(T.ty - T.y) < 0.3f) { T.y = T.ty; T.vy = 0; }
@@ -548,10 +546,10 @@ static void rounded(int x, int y, int w, int h, uint16_t fill, uint16_t edge)
     gfx_fill(x + 1, y + 1, w - 2, h - 2, fill);
 }
 
-static void draw_block(const block_t *b, int dy)
+static void draw_block(const block_t *b)
 {
     if (b->st == B_NONE) return;
-    int x = (int)b->x, y = (int)b->y + dy;
+    int x = (int)b->x, y = (int)b->y;
     uint16_t sc = SRC_COLOR[b->l.src < SRC_COUNT ? b->l.src : 0];
     gfx_fill(x + 1, y + 7, b->w - 1, 1, RGB(10, 10, 20));   /* Schatten */
     if (b->l.head) {
@@ -763,12 +761,27 @@ static void draw_courier(void)
 static void draw_bubble(void)
 {
     if (!bubble_t || !bubble[0]) return;
+    uint16_t edge = theme ? RGB(120, 230, 120) : RGB(10, 12, 24);
     int w = gfx_text_w(bubble) + 6, x = (int)O.x - w / 2, y = (int)O.y - 28;
     if (x < 1) x = 1;
     if (x + w > GW - 1) x = GW - 1 - w;
     if (y < SCENE_TOP + 1) y = SCENE_TOP + 1;
-    rounded(x, y, w, 9, theme ? RGB(20, 30, 20) : C_WHITE, theme ? RGB(120, 230, 120) : RGB(10, 12, 24));
-    gfx_px((int)O.x, y + 9, theme ? RGB(120, 230, 120) : RGB(10, 12, 24));
+    int tx = (int)O.x, ty = y + 9;                      /* Spitze unter der Blase, zeigt zur Eule */
+    /* Sitzt die Eule waehrend einer Tafel unten im Gras, laege die Blase ueber der Tafel:
+     * dann neben die Eule setzen, rechts wenn Platz ist, sonst links (Spitze seitlich). */
+    if (T.on && x < T.x + T.w && x + w > T.x && y < T.y + T.h + 1 && y + 9 > T.y) {
+        int right = (int)O.x + 10, left = (int)O.x - 10 - w;
+        bool go_right = right + w <= GW - 1 || left < 1;
+        x = go_right ? right : left;
+        if (x + w > GW - 1) x = GW - 1 - w;
+        if (x < 1) x = 1;
+        y = GH - 14;
+        if (y < (int)T.y + T.h + 2) y = (int)T.y + T.h + 2;
+        ty = y + 4;
+        tx = go_right ? x - 1 : x + w;
+    }
+    rounded(x, y, w, 9, theme ? RGB(20, 30, 20) : C_WHITE, edge);
+    gfx_px(tx, ty, edge);
     gfx_text_plain(x + 3, y + 2, bubble, theme ? RGB(140, 255, 140) : RGB(10, 12, 24));
 }
 
@@ -777,11 +790,11 @@ void courier_render(void)
     for (int y = 0; y < GH; y += GFX_BAND) {
         gfx_band_begin(y);
         scene_draw_back();
-        for (int i = 0; i < nrows; i++) draw_block(&R[i], R[i].st == B_PLACED ? bob[i] : 0);
-        for (int i = 0; i < 4; i++) draw_block(&GONE[i], 0);
+        for (int i = 0; i < nrows; i++) draw_block(&R[i]);
+        for (int i = 0; i < 4; i++) draw_block(&GONE[i]);
         draw_panel();
         scene_draw_front();
-        if (carried.st == B_CARRIED && phase != F_NOTE) draw_block(&carried, 0);
+        if (carried.st == B_CARRIED && phase != F_NOTE) draw_block(&carried);
         draw_note();
         draw_courier();
         for (int i = 0; i < MAXFX; i++) if (FX[i].life) gfx_px((int)FX[i].x, (int)FX[i].y, FX[i].c);
