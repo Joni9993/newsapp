@@ -460,13 +460,51 @@ static void draw_particles(int front)
 
 /* ---------------------------------------------------------------- Kopfzeile */
 
-static void icon_weather(int x, int y, int code)
+/* Wetter-Symbole der Kopfzeile (5 Zeilen, '.' = leer), gemeinsam fuer Eulen- und Terminal-Ansicht */
+enum { WI_SUN, WI_MOON, WI_PARTLY, WI_CLOUD, WI_FOG, WI_RAIN, WI_SNOW, WI_STORM };
+static const char *const WI[8][5] = {
+    { ".YYY.", "YYYYY", "YYYYY", "YYYYY", ".YYY." },
+    { "..MMM", ".MM..", ".MM..", ".MM..", "..MMM" },
+    { "YY....", "YYWWW.", "YWWWWW", ".WWWWW", "......" },
+    { "......", "..WW..", ".WWWW.", "WWWWWW", "WWWWWW" },
+    { "FFFFF.", "......", ".FFFFF", "......", "FFFFF." },
+    { ".WWW..", "WWWWW.", "WWWWWW", "B..B..", ".B..B." },
+    { ".WWW..", "WWWWW.", "WWWWWW", "S.S.S.", ".S.S.S" },
+    { ".GGG..", "GGGGG.", "GGGGGG", "..LL..", ".L...." },
+};
+
+int wx_header_icon(int code, bool day)
 {
-    uint16_t sun = RGB(255, 210, 60), cl = RGB(230, 232, 240), rn = RGB(120, 170, 255);
-    if (code <= 1) { gfx_fill(x + 1, y, 3, 5, sun); gfx_fill(x, y + 1, 5, 3, sun); return; }
-    gfx_fill(x, y + 1, 6, 3, cl);
-    gfx_fill(x + 1, y, 3, 1, cl);
-    if (code >= 51) { gfx_px(x + 1, y + 4, rn); gfx_px(x + 4, y + 4, rn); }
+    if (code <= 1) return day ? WI_SUN : WI_MOON;
+    if (code == 2) return day ? WI_PARTLY : WI_CLOUD;
+    if (code == 45 || code == 48) return WI_FOG;
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return WI_RAIN;
+    if ((code >= 71 && code <= 77) || code == 85 || code == 86) return WI_SNOW;
+    if (code >= 95 && code <= 99) return WI_STORM;
+    return WI_CLOUD;
+}
+
+/* Symbol bei (x,y) zeichnen; badge = dunkle Plakette dahinter (Terminal-Leiste) */
+void scene_weather_icon(int x, int y, int code, bool day, bool badge)
+{
+    const char *const *m = WI[wx_header_icon(code, day)];
+    if (badge) gfx_fill(x - 1, y - 1, (int)strlen(m[0]) + 2, 7, RGB(2, 8, 4));
+    for (int r = 0; r < 5; r++)
+        for (int c = 0; m[r][c]; c++) {
+            uint16_t col;
+            switch (m[r][c]) {
+            case 'Y': col = RGB(255, 210, 60); break;
+            case 'M': col = RGB(240, 230, 180); break;
+            case 'W': col = RGB(230, 232, 240); break;
+            case 'G': col = RGB(154, 160, 176); break;
+            case 'B': col = RGB(120, 170, 255); break;
+            case 'S': col = RGB(255, 255, 255); break;
+            case 'L': col = RGB(255, 225, 74); break;
+            case 'F': col = RGB(200, 204, 216); break;
+            default: continue;
+            }
+            gfx_px(x + c, y + r, col);
+        }
 }
 
 void scene_draw_topbar(void)
@@ -484,7 +522,7 @@ void scene_draw_topbar(void)
         x -= gfx_text_w(b);
         gfx_text(x, 1, b, RGB(255, 230, 150));
         x -= 8;
-        icon_weather(x, 1, w.code);
+        scene_weather_icon(x, 1, w.code, w.is_day, false);
         x -= 3;
     }
     if (net_time_valid()) {
