@@ -145,7 +145,7 @@ void screen_init(void) {
   config_get(&cfg);
   revision = config_revision();
   courier_init();
-  courier_set_theme(cfg.theme);
+  courier_set_theme(THEME_FIGURE(cfg.theme));
   /* Code nur bei der Ersteinrichtung von selbst; sonst fordert ihn die Webseite
    * an, sobald jemand sie ohne Anmeldung oeffnet */
   if (!net_configured())
@@ -191,7 +191,7 @@ void screen_tick(void) {
     revision = config_revision();
     cards_filter();
     reset_view();
-    courier_set_theme(cfg.theme);
+    courier_set_theme(THEME_FIGURE(cfg.theme));
   }
   if (net_setup_active() && !net_connected())
     return;

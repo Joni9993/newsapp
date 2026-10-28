@@ -386,8 +386,8 @@ static void tick_panel_in(void)
 
 static void tick_panel_read(void)
 {
-    float px, py;
-    scene_perch(O.perch, &px, &py);   /* nur x: Seitenwechsel bleibt erhalten */
+    float px;
+    scene_ground_perch(O.perch, &px);   /* im Gras, nie vor Pfosten/Stumpf; Seite bleibt erhalten */
     if (fly_to(px, PANEL_PERCH_Y, SPEED)) idle_face();
     if (++t > COURIER_HZ * 9) { phase = F_PANEL_OUT; stage = 0; t = 0; }
 }

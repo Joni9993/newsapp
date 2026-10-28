@@ -6,7 +6,7 @@ function action(fn){return async e=>{e?.preventDefault();const button=e?.current
 function setDirty(v){dirty=v;document.querySelector('.status').classList.toggle('dirty',v);document.querySelector('.status .mode').textContent=v?'-- INSERT --':'-- NORMAL --';$('saveHint').textContent=v?'[+] ungespeicherte änderungen':'synced';}
 const changed=()=>setDirty(true);
 function el(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
-const fields=['city','region','mode','theme','duration','brightness','night_brightness','night_start','night_end','autoUpdate'];
+const fields=['city','region','mode','theme','duration','brightness','night_brightness','night_start','night_end','autoUpdate','ttyHeader'];
 const regions=['Baden-Württemberg','Bayern','Berlin','Brandenburg','Bremen','Hamburg','Hessen','Mecklenburg-Vorpommern','Niedersachsen','Nordrhein-Westfalen','Rheinland-Pfalz','Saarland','Sachsen','Sachsen-Anhalt','Schleswig-Holstein','Thüringen'];regions.forEach((name,i)=>{const o=el('option',name.toLowerCase());o.value=i+1;$('region').append(o)});
 const time=t=>new Date(t*1000).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 function moduleStatus(m){return !m?['','']:m.loading?['sync…','']:m.error?['err','err']:m.lastSuccess?['ok '+time(m.lastSuccess),'ok']:['idle',''];}

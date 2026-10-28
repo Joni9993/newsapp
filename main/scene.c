@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include "esp_timer.h"
 
 #define C_WHITE RGB(255, 255, 255)
 #define MAILBOX_X 96
@@ -491,14 +492,15 @@ void scene_draw_topbar(void)
         x -= gfx_text_w(b);
         gfx_text(x, 1, b, C_WHITE);
     }
-    /* Update-Hinweis: kleiner gruener Pfeil links neben der Uhrzeit, nur wenn
-     * zwischen Ort und Uhrzeit noch Platz ist */
-    if (ota_update_available(NULL, 0) && x - 5 > city_end + 1) {
+    /* Update-Hinweis: 5x6 Download-Symbol links neben der Uhrzeit (1 s an, 0,5 s aus),
+     * nur wenn zwischen Ort und Uhrzeit noch Platz ist */
+    int ax = x - 6;
+    if (ota_update_available(NULL, 0) && ax > city_end + 1 && esp_timer_get_time() % 1500000 < 1000000) {
+        static const char *const DL[6] = { "..X..", "..X..", "X.X.X", ".XXX.", "..X..", "XXXXX" };
         uint16_t g = RGB(120, 240, 140);
-        int ax = x - 5;
-        gfx_px(ax + 1, 1, g);
-        gfx_fill(ax, 2, 3, 1, g);
-        gfx_fill(ax + 1, 3, 1, 3, g);
+        for (int r = 0; r < 6; r++)
+            for (int c = 0; c < 5; c++)
+                if (DL[r][c] == 'X') gfx_px(ax + c, 1 + r, g);
     }
 }
 
@@ -506,4 +508,13 @@ void scene_perch(int which, float *x, float *y)
 {
     if (which == 0) { *x = MAILBOX_X; *y = 58; }      /* auf dem Briefkasten */
     else { *x = STUMP_X + 12; *y = 68; }              /* auf dem Baumstumpf */
+}
+
+/* Sitzplatz im Gras (x des Eulen-Fusspunkts, Sprite+Rand = x-9..x+8): frei von Pfosten,
+ * Stumpf, Stamm, Briefkasten bzw. Laterne, Fass, Ladestation des aktuellen Themas.
+ * Landschaft: Stamm 11..13, Stumpf 20..28, Briefkasten 91..100 -> frei 29..90.
+ * Stadt: Laterne 12, Fass 20..28, Ladestation 91..106 -> frei 29..90. */
+void scene_ground_perch(int which, float *x)
+{
+    *x = which == 0 ? 82.0f : 38.0f;   /* 73..90 rechts, 29..46 links */
 }

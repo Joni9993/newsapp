@@ -19,6 +19,11 @@ typedef struct {
     uint8_t order[MODULE_COUNT];
     calendar_config_t calendars[CALENDAR_COUNT];
 } board_config_t;
+/* `theme` ist ein Bitfeld: Bit 0 = Figur (0 Eule, 1 Roboter), Bit 1 = Terminal-Kopfzeile
+ * (0 IP + Status, 1 Ort + Wetter). Es gibt kein Auffuellbyte mehr, und alte, gueltige
+ * Blobs haben theme 0/1, also Bit 1 = 0 = Standard. Nur lesen mit THEME_FIGURE(). */
+#define THEME_FIGURE(t) ((t) & 1)
+#define THEME_TTY_CITY 2
 _Static_assert(sizeof(board_config_t) == 5180, "NVS-Blob muss gleich gross bleiben");
 bool config_init(void);
 void config_get(board_config_t *out);
@@ -28,6 +33,8 @@ int config_order(int pos);
 uint16_t config_duration(void);
 /* Automatische Updates: 0 = aus, 1 = pruefen + Hinweis, 2 = nachts installieren */
 int config_auto_update(void);
+/* Terminal-Kopfzeile: 0 = IP + Status (Standard), 1 = Ort + Wetter */
+int config_tty_header(void);
 bool config_has_ssid(void);
 void config_credentials(char ssid[33], char password[65]);
 void config_calendar(int slot, calendar_config_t *out);
