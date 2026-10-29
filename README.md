@@ -1,139 +1,140 @@
-<p align="center"><img src="docs/logo.svg" alt="Logo: Pixel-Eule" width="160"></p>
+<p align="center"><img src="docs/logo.svg" alt="Logo: pixel owl" width="160"></p>
 
 # Nachrichtenbote (Newsboard)
 
-Ein kleines Info-Display auf Basis eines **Seeed XIAO ESP32-C6** mit einem
-**ST7789-TFT (320×240, quer)**. Eine animierte Posteule (oder wahlweise ein
-Roboter in einer zerfallenen Stadt) trägt Nachrichten, Wetter und Fakten Zeile
-für Zeile ins Bild. Alternativ gibt es ein Terminal-Dashboard im Retro-Look.
+A small info display built on a **Seeed XIAO ESP32-C6** with an
+**ST7789 TFT (320×240, landscape)**. An animated courier owl (or, if you prefer,
+a robot in a ruined city) carries news, weather and facts into the picture line
+by line. Alternatively there is a retro-style terminal dashboard.
 
-Eingerichtet und bedient wird das Board über eine eingebaute Weboberfläche –
-ein Handy im selben WLAN genügt.
+The board is set up and operated through a built-in web interface – a phone on
+the same Wi-Fi is all you need. The display and the web interface are in
+German.
 
-## Funktionen
+## Features
 
-- **18 Module**, einzeln an-/abschaltbar und frei sortierbar:
-  Tagesschau, Wetter (Open-Meteo), Heute in der Geschichte, Geburtstage,
-  Wikipedia-Zufall, Sonnenzeiten, Mond, Kalenderwoche, Ökostrom,
-  Luftqualität, Erdbeben, Feiertage, Menschen im Weltall, Bitcoin,
-  Euro/US-Dollar, Meine Termine, Uhrzeit, JW.ORG-Nachrichten
-- **Kalender**: bis zu 6 iCal-Kalender (z. B. Google-Privatadresse `.ics`),
-  mit eigenem Parser inkl. Wiederholungen, Ausnahmen und Zeitzonen
-- **Push-Nachrichten vom Handy**: eine Automatisierungs-App (z. B. Automate
-  oder MacroDroid) leitet Benachrichtigungen an das Board weiter
-- **Darstellung**: Posteule/Roboter (animiert) oder Terminal-Dashboard,
-  Helligkeit mit Nachtabsenkung, Anzeigedauer pro Karte
-- **Weboberfläche** (direkt in die Firmware eingebettet) mit Kopplung per
-  6-stelligem Code, der auf dem Display erscheint
+- **18 modules**, each can be switched on or off and freely reordered:
+  Tagesschau (news), weather (Open-Meteo), today in history, birthdays,
+  random Wikipedia article, sun times, moon, calendar week, green electricity,
+  air quality, earthquakes, public holidays, people in space, Bitcoin,
+  euro/US dollar, my appointments, clock, JW.ORG news
+- **Calendars**: up to 6 iCal calendars (e.g. the Google private address
+  `.ics`), with its own parser including recurrences, exceptions and time zones
+- **Push notifications from your phone**: an automation app (e.g. Automate or
+  MacroDroid) forwards notifications to the board
+- **Appearance**: owl/robot (animated) or terminal dashboard, brightness with
+  a night dimming mode, display time per card
+- **Web interface** (embedded directly in the firmware) with pairing by a
+  6-digit code that appears on the display
 
 ## Hardware
 
-| Display-Pin | XIAO-Pin | GPIO |
+| Display pin | XIAO pin | GPIO |
 |-------------|----------|------|
 | SCK         | D8       | 19   |
 | MOSI (SDA)  | D10      | 18   |
 | CS          | D3       | 21   |
 | DC          | D1       | 1    |
 | RST         | D2       | 2    |
-| BL (Licht)  | D0       | 0    |
+| BL (light)  | D0       | 0    |
 
-Beim alten Board („Posteule“, 2″-Panel) sind DC und RST vertauscht und die
-Farbumkehr ist an – dafür gibt es den Legacy-Build (siehe unten). Die Pins
-stehen in [main/lcd.h](main/lcd.h).
+On the old board ("Posteule", 2″ panel) DC and RST are swapped and color
+inversion is on – there is a legacy build for that (see below). The pins are
+defined in [main/lcd.h](main/lcd.h).
 
-Die **BOOT-Taste (GPIO 9)** ca. 5 Sekunden gedrückt halten startet den
-Einrichtungsmodus neu und zeigt den Kopplungscode an.
+Holding the **BOOT button (GPIO 9)** for about 5 seconds restarts setup mode
+and shows the pairing code.
 
-> Der ESP32-C6 unterstützt nur **2,4-GHz-WLAN**.
+> The ESP32-C6 only supports **2.4 GHz Wi-Fi**.
 
-## Projektstruktur
+## Project structure
 
 ```
-main/            Firmware (C, ESP-IDF-Komponente)
-  main.c         Einstieg: NVS, Konfiguration, Display, WLAN, Quellen, Webserver
-  sources.c      Holt Daten aus dem Netz und erzeugt Karten (eigene Task)
-  courier.c      Animation des Boten (Eule/Roboter), scene.c / sprites.c Grafik
-  tty.c          Terminal-Dashboard-Ansicht
-  web.c          HTTP-Server + REST-API (/api/v1/...)
-  index.html, app.js, style.css   Weboberfläche (wird eingebettet)
-  ical.c, calendar.c              iCal-Parser und Kalender-Modul
-  rss.c          RSS/Atom-Leser (JW.ORG-Nachrichten)
-  notify.c       Push-Nachrichten
-  ota.c          Firmware-Update per Upload (OTA) + Rollback
-  config.c       Einstellungen (im NVS gespeichert)
-tests/           Host-Tests für den iCal-Parser (Python + ctypes)
-tools/           Build-Skript, serieller Monitor, UI-Vorschau
-partitions.csv   Partitionstabelle (2 × 1,875 MB OTA-App)
-.github/         CI: baut die Firmware (.bin) bei jedem Push
+main/            Firmware (C, ESP-IDF component)
+  main.c         Entry point: NVS, configuration, display, Wi-Fi, sources, web server
+  sources.c      Fetches data from the network and creates cards (own task)
+  courier.c      Courier animation (owl/robot), scene.c / sprites.c graphics
+  tty.c          Terminal dashboard view
+  web.c          HTTP server + REST API (/api/v1/...)
+  index.html, app.js, style.css   Web interface (embedded in the firmware)
+  ical.c, calendar.c              iCal parser and calendar module
+  rss.c          RSS/Atom reader (JW.ORG news)
+  notify.c       Push notifications
+  ota.c          Firmware update by upload (OTA) + rollback
+  config.c       Settings (stored in NVS)
+tests/           Host tests for the iCal parser (Python + ctypes)
+tools/           Build script, serial monitor, UI preview
+partitions.csv   Partition table (2 × 1.875 MB OTA app)
+.github/         CI: builds the firmware (.bin) on every push
 sdkconfig.defaults
 ```
 
-## Einrichtung der Entwicklungsumgebung
+## Setting up the development environment
 
-1. **ESP-IDF v5.3** installieren (z. B. mit dem
+1. Install **ESP-IDF v5.3** (e.g. with the
    [ESP-IDF Installer](https://docs.espressif.com/projects/esp-idf/en/v5.3/esp32c6/get-started/)).
-   Das Build-Skript erwartet ESP-IDF unter `%USERPROFILE%\esp\esp-idf`.
-2. Optional: **Node.js** – das Build-Skript prüft damit `main/app.js` auf
-   Syntaxfehler.
-3. Optional für Tools/Tests: **Python 3** mit `pyserial`
+   The build script expects ESP-IDF at `%USERPROFILE%\esp\esp-idf`.
+2. Optional: **Node.js** – the build script uses it to check `main/app.js` for
+   syntax errors.
+3. Optional, for tools/tests: **Python 3** with `pyserial`
    (`pip install pyserial`).
 
-## Bauen und Flashen
+## Building and flashing
 
-Unter Windows (PowerShell) mit dem mitgelieferten Skript:
+On Windows (PowerShell) with the included script:
 
 ```powershell
-# nur bauen
+# build only
 .\tools\build.ps1
 
-# bauen und flashen (Port anpassen)
+# build and flash (adjust the port)
 .\tools\build.ps1 -Flash -Port COM12
 ```
 
-Oder direkt mit `idf.py` in einer ESP-IDF-Shell:
+Or directly with `idf.py` in an ESP-IDF shell:
 
 ```sh
-idf.py set-target esp32c6     # nur beim ersten Mal
+idf.py set-target esp32c6     # only the first time
 idf.py build
 idf.py -p COM12 flash monitor
 ```
 
-### Build-Varianten
+### Build variants
 
 ```sh
-# altes 2"-Panel (DC/RST vertauscht, andere Ausrichtung/Farbumkehr)
+# old 2" panel (DC/RST swapped, different orientation/color inversion)
 idf.py -B build-legacy -DNEWSBOARD_LEGACY_PANEL=1 build
 
-# reiner Display-Test (Farbbalken, ohne WLAN/Webserver)
+# display test only (color bars, no Wi-Fi/web server)
 idf.py -B build-test -DNEWSBOARD_DISPLAY_TEST=1 build
 ```
 
-## Inbetriebnahme
+## Getting started
 
-1. **Erster Start**: Ist noch kein WLAN gespeichert, öffnet das Board einen
-   eigenen Hotspot `NEWSBOARD-XXXX`. Name, Passwort und ein QR-Code zum
-   Verbinden stehen auf dem Display.
-2. Mit dem Handy verbinden und im Browser **http://192.168.4.1** öffnen.
-3. Den **Kopplungscode** vom Display im Browser eingeben.
-4. Heim-WLAN auswählen und Passwort eintragen. Danach ist das Board unter
-   seiner IP-Adresse im Heimnetz erreichbar (wird auf dem Display angezeigt).
-5. In der Weboberfläche Ort/Bundesland, Module, Kalender, Darstellung und
-   Helligkeit einstellen und speichern.
+1. **First start**: if no Wi-Fi is saved yet, the board opens its own hotspot
+   `NEWSBOARD-XXXX`. Name, password and a QR code for connecting are shown on
+   the display.
+2. Connect with your phone and open **http://192.168.4.1** in the browser.
+3. Enter the **pairing code** from the display in the browser.
+4. Choose your home Wi-Fi and enter the password. After that the board can be
+   reached on your home network at its IP address (shown on the display).
+5. In the web interface, set location/federal state, modules, calendars,
+   appearance and brightness, and save.
 
-Alle Einstellungen liegen im NVS-Flash und bleiben auch nach einem Update
-erhalten (siehe [Update über WLAN](#update-über-wlan-ota)).
+All settings are kept in NVS flash and survive an update (see
+[Update over Wi-Fi](#update-over-wi-fi-ota)).
 
-### Kalender
+### Calendars
 
-In der Weboberfläche bis zu sechs Kalender eintragen (weitere über den
-+-Button). Bei Google Kalender die
-**„Privatadresse im iCal-Format“** (endet auf `.ics`) verwenden, nicht die
-Kalender-ID. Links müssen mit `https://` beginnen.
+Enter up to six calendars in the web interface (more with the + button). For
+Google Calendar use the **"Privatadresse im iCal-Format"** (secret address in
+iCal format, ends in `.ics`), not the calendar ID. Links must start with
+`https://`.
 
-### Push-Nachrichten
+### Push notifications
 
-In der Weboberfläche lassen sich Push-Nachrichten aktivieren; dort steht auch
-der Token. Eine App sendet dann einen HTTP-Request an:
+Push notifications can be switched on in the web interface; the token is shown
+there too. An app then sends an HTTP request to:
 
 ```
 POST http://<board-ip>/api/v1/notify?token=<token>
@@ -142,107 +143,109 @@ Content-Type: application/json
 {"app": "Signal", "title": "Anna", "text": "Bin gleich da"}
 ```
 
-Die Felder `app`, `title`, `text` und `token` dürfen auch als Query-Parameter
-oder Formulardaten kommen. Für **LlamaLab Automate** kann die Weboberfläche
-einen fertigen Flow herunterladen, in dem IP und Token schon eingetragen sind.
+The fields `app`, `title`, `text` and `token` may also come as query
+parameters or form data. For **LlamaLab Automate** the web interface can
+download a ready-made flow with the IP and token already filled in.
 
-## Update über WLAN (OTA)
+## Update over Wi-Fi (OTA)
 
-Neue Firmware lässt sich ohne Kabel einspielen. Das Board holt sich nichts aus
-dem Internet (das GitHub-Repo ist privat), sondern bekommt die `.bin` per
-Upload in der Weboberfläche. Gebaut wird sie automatisch von GitHub Actions –
-lokal ist keine ESP-IDF nötig.
+New firmware can be installed without a cable. The board does not fetch
+anything from the internet (the GitHub repo is private); it receives the `.bin`
+by upload in the web interface. It is built automatically by GitHub Actions –
+no local ESP-IDF is needed.
 
-**Einmalig per USB:** Die Partitionstabelle hat sich geändert (zwei
-OTA-Partitionen statt einer großen App-Partition). Deshalb muss das Board
-einmal per USB geflasht werden (`idf.py flash` oder die `…-full.bin` aus dem
-Build ab Adresse 0). Die Einstellungen bleiben dabei erhalten: der NVS-Bereich
-liegt unverändert an `0x9000`. Danach geht alles über WLAN.
+**Once over USB:** the partition table has changed (two OTA partitions instead
+of one big app partition). So the board has to be flashed over USB once
+(`idf.py flash` or the `…-full.bin` from the build, from address 0). Your
+settings are kept: the NVS area stays unchanged at `0x9000`. After that
+everything works over Wi-Fi.
 
-**Update einspielen:**
+**Installing an update:**
 
-1. Auf GitHub unter **Actions** (Artifact `newsboard-firmware`) oder
-   **Releases** die Datei **`newsboard.bin`** herunterladen. Für das alte
-   2″-Panel stattdessen **`newsboard-legacy.bin`**.
-2. Weboberfläche des Boards öffnen → Tab **fw** (Firmware).
-3. Datei wählen → **Update installieren** → bestätigen.
-4. Der Fortschrittsbalken läuft, das Board startet neu (ca. 30 s) und die
-   Seite zeigt die neue Version an.
+1. On GitHub, download the file **`newsboard.bin`** under **Actions** (artifact
+   `newsboard-firmware`) or **Releases**. For the old 2″ panel take
+   **`newsboard-legacy.bin`** instead.
+2. Open the board's web interface → tab **fw** (firmware).
+3. Choose the file → **Update installieren** ("install update") → confirm.
+4. The progress bar runs, the board restarts (about 30 s) and the page shows
+   the new version.
 
-Es werden nur Images mit passendem Projektnamen akzeptiert. Die Firmware wird
-beim Hochladen auf Größe und Prüfsumme kontrolliert.
+Only images with a matching project name are accepted. The firmware is checked
+for size and checksum during upload.
 
-**Varianten-Schutz:** Die Version der Legacy-Builds endet auf `-legacy` (CI und
-lokal mit `NEWSBOARD_LEGACY_PANEL`). Der Upload lehnt eine Datei für die falsche
-Anzeige ab („Falsche Display-Variante: …“). Der Haken **Variante nicht prüfen**
-neben dem Upload hängt `?force=1` an die Anfrage und überspringt diese Prüfung –
-nur für Sonderfälle. Das Online-Update wählt die passende Datei selbst.
+**Variant protection:** the version of legacy builds ends in `-legacy` (in CI
+and locally with `NEWSBOARD_LEGACY_PANEL`). The upload rejects a file for the
+wrong display ("Falsche Display-Variante: …", wrong display variant). The
+checkbox **Variante nicht prüfen** ("don't check variant") next to the upload
+appends `?force=1` to the request and skips this check – for special cases
+only. The online update picks the right file by itself.
 
-**Online-Update:** Im Tab **fw** auf **Nach Update suchen** tippen. Das Board
-fragt GitHub nach dem neuesten Release von `Joni9993/newsapp` und zeigt die
-Version. Mit **Installieren** lädt es die passende Datei selbst herunter
-(`newsboard.bin`, beim alten Panel automatisch `newsboard-legacy.bin`),
-flasht sie und startet neu. Voraussetzungen: das Repo ist **öffentlich**
-(solange es privat ist, meldet das Board „Kein öffentliches Release gefunden“),
-das Board hat Internet und eine synchrone Uhrzeit. Der manuelle Upload bleibt
-als Alternative. Während Upload und Installation pausieren die
-Datenquellen, damit Speicher und Netz frei bleiben; die Suche läuft im
-Hintergrund (Ergebnis über `GET /api/v1/ota/status`).
+**Online update:** in the tab **fw**, tap **Nach Update suchen** ("check for
+updates"). The board asks GitHub for the newest release of
+`Joni9993/newsapp` and shows the version. With **Installieren** ("install") it
+downloads the matching file itself (`newsboard.bin`, automatically
+`newsboard-legacy.bin` on the old panel), flashes it and restarts.
+Requirements: the repo is **public** (as long as it is private, the board
+reports "Kein öffentliches Release gefunden", no public release found), the
+board has internet access and a synchronized clock. The manual upload remains
+as an alternative. During upload and installation the data sources pause so
+that memory and network stay free; the search runs in the background (result
+via `GET /api/v1/ota/status`).
 
-**Terminal-Kopfzeile:** Im Tab **disp** (nur bei Ansicht „terminal“ sichtbar) wählbar (JSON-Feld `ttyHeader`, gespeichert mit
-`:w save`): `0` = IP und Status (Standard), `1` = Ort links, rechts Uhrzeit, Wetter-Symbol
-und Temperatur wie in der Eulen-Ansicht.
-Der Uhr-Doppelpunkt ist standardmäßig fest; `clockBlink` = `1` lässt ihn blinken.
+**Terminal header:** in the tab **disp** (only visible with the "terminal"
+view) you can choose (JSON field `ttyHeader`, saved with `:w save`): `0` = IP
+and status (default), `1` = location on the left, on the right the time,
+weather symbol and temperature as in the owl view.
+The clock colon is steady by default; `clockBlink` = `1` makes it blink.
 
-**Automatische Updates:** Im Tab **fw** wählbar (JSON-Feld `autoUpdate`,
-gespeichert mit `:w save`):
+**Automatic updates:** selectable in the tab **fw** (JSON field `autoUpdate`,
+saved with `:w save`):
 
-| Wert | Modus | Verhalten |
+| Value | Mode | Behavior |
 | --- | --- | --- |
-| 0 | Aus | keine automatische Suche |
-| 1 | Prüfen und Hinweis (Standard) | erste Suche ca. 3 min nach Start (sobald Netz und Uhrzeit da sind), danach alle 24 h; ein neueres Release zeigt ein kleines Pfeil-Symbol in der Kopfzeile (Eule und Terminal, wenn Platz ist) und „Update verfügbar“ im Tab **fw** |
-| 2 | Nachts installieren | wie 1, zusätzlich Suche im Fenster 03:00–04:59 Ortszeit und automatische Installation. Ist das Board beschäftigt oder der Speicher knapp, gibt es den nächsten Versuch erst in der nächsten Nacht. Jede Version wird nachts nur einmal versucht (kein Dauer-Neuversuch nach einem Rollback), und Entwickler-Builds (z. B. `v1.5-3-gabc123`) werden nie automatisch überschrieben |
+| 0 | Off ("Aus") | no automatic search |
+| 1 | Check and notify (default) | first search about 3 min after start (once network and clock are available), then every 24 h; a newer release shows a small arrow symbol in the header bar (owl and terminal, when there is room) and "Update verfügbar" (update available) in the tab **fw** |
+| 2 | Install at night | like 1, plus a search in the window 03:00–04:59 local time and automatic installation. If the board is busy or memory is low, the next attempt only comes the following night. Each version is tried only once per night (no endless retries after a rollback), and developer builds (e.g. `v1.5-3-gabc123`) are never overwritten automatically |
 
-**Rollback:** Eine neu installierte Firmware muss sich nach dem Start selbst
-bestätigen (sobald der Webserver läuft). Startet sie nicht oder stürzt vorher
-ab, schaltet der Bootloader beim nächsten Neustart automatisch auf die alte
-Version zurück.
+**Rollback:** a newly installed firmware has to confirm itself after starting
+(as soon as the web server is running). If it does not start or crashes
+before that, the bootloader automatically switches back to the old version on
+the next restart.
 
-**Versionen:** Die Version stammt aus `git describe` (z. B. `v1.2.0` oder
-`v1.2.0-5-gabc1234`). Ein Release mit beiden Dateien entsteht automatisch beim
-Pushen eines Tags `v*`.
+**Versions:** the version comes from `git describe` (e.g. `v1.2.0` or
+`v1.2.0-5-gabc1234`). A release with both files is created automatically when
+a tag `v*` is pushed.
 
-## Entwicklung
+## Development
 
-### Weboberfläche lokal testen
+### Testing the web interface locally
 
 ```sh
 python tools/preview.py
 ```
 
-Startet einen Vorschau-Server unter http://127.0.0.1:8765 mit Beispieldaten
-(Kopplungscode: `123456`). Die Dateien werden direkt aus `main/` geladen –
-Änderungen an HTML/CSS/JS sind nach einem Neuladen sichtbar.
+Starts a preview server at http://127.0.0.1:8765 with sample data (pairing
+code: `123456`). The files are loaded directly from `main/` – changes to
+HTML/CSS/JS are visible after a reload.
 
-### Serielles Log mitschneiden
+### Capturing the serial log
 
 ```sh
 python tools/monitor.py --port COM12 --seconds 30
 ```
 
-Speichert die Ausgabe in `build/runtime.log` und zeigt wichtige Zeilen
-(Fehler, IP, Neustarts, Heap) an.
+Saves the output to `build/runtime.log` and shows important lines (errors, IP,
+restarts, heap).
 
 ### Tests
 
-Die Tests in [tests/test_ical.py](tests/test_ical.py) prüfen den echten
-iCal-Parser der Firmware auf dem PC. Dazu muss `main/ical.c` zuerst als
-Bibliothek `build/ical-test.dll` gebaut werden, z. B. mit MinGW-GCC (unter Linux
-zusätzlich `-fPIC`):
+The tests in [tests/test_ical.py](tests/test_ical.py) check the firmware's real
+iCal parser on a PC. For this, `main/ical.c` must first be built as the library
+`build/ical-test.dll`, e.g. with MinGW GCC (on Linux additionally `-fPIC`):
 
 ```sh
 gcc -shared -O2 -o build/ical-test.dll main/ical.c
 python tests/test_ical.py
 ```
 
-Der GitHub-Build führt diese Tests bei jedem Push automatisch aus.
+The GitHub build runs these tests automatically on every push.

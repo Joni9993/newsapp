@@ -123,8 +123,8 @@ project itself is described in the [README](README.md).
 - **Display, animation, Wi-Fi and the update function** cannot be tested automatically: green build, then a
   check on the real board.
 - Before every push: `node --check main/app.js`, and a syntax check of `tools/preview.py` when it changed.
-- **Previews:** the web UI with `python tools/preview.py` (sample data, README "Weboberfläche lokal
-  testen"). For the display, pixel previews (font 3x5 pixels, world 107x80 pixels, each pixel 3x3 on the
+- **Previews:** the web UI with `python tools/preview.py` (sample data, README "Testing the web interface
+  locally"). For the display, pixel previews (font 3x5 pixels, world 107x80 pixels, each pixel 3x3 on the
   display) or a photo of the board.
 
 ### Release
@@ -132,7 +132,7 @@ project itself is described in the [README](README.md).
 - A release is started **by hand on the Actions page**: workflow "Firmware bauen" -> "Run workflow" on
   `main` -> field `release_tag` (e.g. `v1.9`). The workflow creates tag and release and attaches
   `newsboard.bin`, `newsboard-legacy.bin` and both `-full.bin` files.
-- The release description comes from `docs/release-einleitung.md`, followed by the automatic list of
+- The release description comes from `docs/release-intro.md`, followed by the automatic list of
   changes.
 - Boards fetch updates from the latest release themselves (online update). A release reaches every board that
   checks for updates or installs them automatically at night.
@@ -165,6 +165,6 @@ project itself is described in the [README](README.md).
 - Cloud sessions **cannot push tags** (HTTP 403) and **cannot delete branches on GitHub**. Releases always go
   through the workflow; a person deletes finished branches on GitHub.
 - No local ESP-IDF (see "Build and test").
-- Most existing documentation (README, release notes, commit history) and the board's display texts are in
-  German. Display texts stay German (the product is made for German users); translating the docs is a
-  choice for the people, not something to do on your own.
+- The README and the release intro (`docs/release-intro.md`) are English. The board's display texts, the web
+  interface and older commit history are German; display texts stay German (the product is made for German
+  users), and translating the old history is not something to do on your own.
