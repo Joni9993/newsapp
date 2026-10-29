@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v5: general (AGENTS.md) - begin -->
+<!-- owner-rules v6: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -89,7 +89,7 @@ project itself is described in the [README](README.md).
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v5: general (AGENTS.md) - end -->
+<!-- owner-rules v6: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
