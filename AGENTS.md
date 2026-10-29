@@ -1,124 +1,133 @@
-# Hinweise für KI-Assistenten
+# Instructions for AI assistants
 
-Diese Datei lesen alle KI-Werkzeuge, die in diesem Repository arbeiten (Claude Code liest sie über
-`CLAUDE.md` mit). Allgemeines zum Projekt steht in der [README](README.md).
+Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
+project itself is described in the [README](README.md).
 
-<!-- owner-rules v3 (angepasst für newsapp: übersetzt ins Deutsche): general (AGENTS.md) - begin -->
+<!-- owner-rules v4: general (AGENTS.md) - begin -->
 
-## Allgemeine Regeln
+## General rules
 
-### Personen
+### People
 
-- Unter „Projektwissen“ steht, **wer am Projekt arbeitet** und wer programmiert.
-- Finde am Anfang der Sitzung heraus, mit wem du arbeitest; wenn es unklar ist, frag nach.
-- Mit jemandem, der nicht programmiert: **Deutsch** sprechen, in einfachen Worten, ohne Fachjargon. Sag, was
-  sich für ihn ändert, nicht welche Datei.
-- Mit allen:
-  - Wenn jemand nach Ideen fragt oder etwas unklar ist: **Varianten anbieten und wählen lassen, bevor du
-    baust**, mit einer Empfehlung. Baue keinen Vorschlag, den niemand ausgewählt hat.
-  - **Ehrlich berichten**: ein fehlgeschlagener Test, ein übersprungener Schritt, ein Fix, der sich als
-    falsch herausgestellt hat. Sag, was **wirklich getestet** und was nur gebaut oder kompiliert ist, und was
-    das für die Person bedeutet.
-  - **Mergen, veröffentlichen oder ausliefern nur, wenn die Person es will.** Arbeit anderer nie ohne deren
-    Zustimmung mergen oder überschreiben; stattdessen vorschlagen (Pull Request, Kommentar).
+- Unless "Project knowledge" says otherwise, assume that the people you work with **do not program**: they
+  build their projects together with AI assistants and rely on you for the code, its quality and its
+  explanation. "Project knowledge" lists who works on the project.
+- Talk to them in **German**, in plain words, without jargon. Say what changes for them, not which file
+  changed.
+- When they ask for ideas or something is unclear, **offer choices and let them pick before building**, with
+  a recommendation. Do not build a proposal nobody chose.
+- **Report honestly**: a test that failed, a step that was skipped, a fix that turned out to be wrong. Say
+  what was **really tested** and what was only built or compiled, and what it means for them.
+- **Merge, release or publish only when the person asks for it.** Never merge or overwrite the work of
+  someone else without their consent; propose it to them (pull request, comment) instead.
 
-### Testen
+### Language
 
-- Wo das Projekt automatische Tests hat, bekommt **jedes neue Verhalten, das sich automatisch testen lässt,
-  einen Test und eine Sabotage-Prüfung**: das Verhalten absichtlich kaputt machen (es muss noch kompilieren
-  und wirklich das Verhalten brechen, nicht nur einen Text), Test laufen lassen, er muss fehlschlagen; Code
-  zurücksetzen und mit `cmp` prüfen, dass die Datei Byte für Byte wieder dieselbe ist. Ein Test, der gegen
-  kaputten Code besteht, ist wertlos.
-- **Was sich nicht automatisch testen lässt** (Hardware, Geräte, Displays, Animationen, Dinge mit echtem
-  Konto oder Dienst), bekommt keine eigene Testsuite. So weit wie möglich prüfen (Build, Kompilieren,
-  Vorschau), dann am echten Gerät oder Dienst, und klar sagen, welcher Teil wie geprüft ist.
-- Wo das Projekt gar keine Tests hat, nicht eigenmächtig eine Testsuite aufbauen: wäre eine Änderung ohne
-  Tests riskant, das als Wahl anbieten.
-- Vor dem Push die Prüfungen des Projekts laufen lassen, wie unter „Projektwissen“ beschrieben.
+- **Everything in the repository is English**: files and documentation, code comments, commit messages,
+  branch names, pull requests, issues and release notes. Only the conversation with the people is German.
+- Text that the product itself shows to its users (an app's interface, a device's display) stays in the
+  language the product is made for.
+- Where a project still has older content in another language, do not translate it on your own: offer it as
+  a choice.
 
-### Änderungen zeigen
+### Testing
 
-- Sichtbare Änderungen zeigen statt beschreiben: **Screenshots**, wo das Ergebnis auf einem Computer läuft.
-- Wo kein Screenshot möglich ist (Gerät, Display, Handy-App, Druck): eine **Vorschau** bauen (Mockup-Seite,
-  Pixel-Vorschau) oder um ein **Foto** vom echten Gerät bitten.
+- Where the project has automated tests, **every new behaviour that can be tested automatically gets a test,
+  and a sabotage check**: break the behaviour on purpose (it must still compile, and it must break the
+  behaviour, not just a selector or a text), run the test, see it fail, put the code back and confirm that
+  the file is byte for byte what it was (`cmp`). A test that passes against broken code is worthless.
+- **What cannot be tested automatically** (hardware, devices, displays, animations, things that need a real
+  account or service) gets no test suite of its own. Check it as far as possible (build, compile, a preview),
+  then on the real device or service, and say plainly which part is checked how.
+- Where the project has no tests at all, do not set up a test suite on your own: when a change would be
+  risky without one, offer it to the owner as a choice.
+- Run the project's checks before pushing, as "Project knowledge" or the project's own instructions say.
+  Where they say nothing: the checks that cover what changed, and the whole suite when the change could have
+  effects elsewhere.
 
-### Fakten an der Quelle prüfen
+### Showing changes
 
-- Nicht aus dem Gedächtnis bauen, wo man nachsehen kann: den echten Quellcode einer Bibliothek lesen, die
-  echte Antwort eines Servers oder Dienstes ansehen, die echten Daten lesen. Verhalten, das „so sein
-  sollte“, ist es oft nicht.
-- Ist eine Ursache unklar, **zuerst nach einem Log oder einer Fehlermeldung fragen, statt zu raten**, und
-  sagen, was es zeigen würde.
+- Show visual changes rather than describing them: **screenshots** where the result runs on a computer.
+- Where no screenshot is possible (a device, a display, a phone app, print): build a **preview** (a mock-up
+  page, a pixel preview), or ask for a **photo** of the real thing.
 
-### Wissen im Repository festhalten
+### Checking facts at the source
 
-- Sitzungen enden und werden gelöscht; das Repository bleibt. Was eine spätere Sitzung wissen muss, gehört in
-  die Dateien des Projekts („Projektwissen“, README, weitere Doku, Commit-Nachrichten), nicht nur ins
-  Gespräch: Entscheidungen und ihre Gründe, Fallen, die Zeit gekostet haben, wie man baut, testet und
-  veröffentlicht, und die Grenzen der Umgebung (was eine Cloud-Sitzung hier nicht kann).
+- Do not build on memory where the real thing can be checked: read the actual source of a library, look at
+  the real answer of a server or service, read the real data. Behaviour that "should" be so is often not.
+- When a cause is unclear, **ask for a log or an error message before guessing**, and say what it would show.
 
-<!-- owner-rules v3 (angepasst für newsapp: übersetzt ins Deutsche): general (AGENTS.md) - end -->
+### Keeping knowledge in the repository
 
-## Projektwissen
+- Sessions end and are deleted; the repository stays. What a later session needs to know goes into the
+  project's files ("Project knowledge", the README, other docs, commit messages), not only into the
+  conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
+  the environment (what a cloud session cannot do there).
 
-### Personen
+<!-- owner-rules v4: general (AGENTS.md) - end -->
 
-- **Der Ersteller des Repositorys** programmiert selbst, kennt den Code und entscheidet über Merges in
-  seine Arbeit.
-- **Ein Mitnutzer** programmiert **nicht**. Er bringt Wünsche ein, testet am echten Board und spielt
-  Updates ein. Mit ihm gelten die Regeln für Personen, die nicht programmieren.
+## Project knowledge
 
-### Bauen und Testen
+### People
 
-- Die Firmware ist ein ESP-IDF-v5.3-Projekt für den ESP32-C6. In Cloud-Sitzungen gibt es **kein lokales
-  ESP-IDF**: der GitHub-Build (`.github/workflows/build.yml`, „Firmware bauen“) ist die Kompilier-Prüfung.
-  Er läuft bei jedem Push, baut die Standard- und die Legacy-Variante (altes 2″-Panel) und führt die
-  Host-Tests aus. Nach dem Push den Lauf abwarten; erst bei grünem Build mergen.
-- **Host-Tests** gibt es für Logik, die auch am PC läuft (bisher der iCal-Parser, `tests/test_ical.py`;
-  Aufruf siehe README, „Tests“). Neue Logik dieser Art (Parser, Textumbruch, Prüfung von Einstellungen)
-  bekommt Test und Sabotage-Prüfung.
-- **Anzeige, Animation, WLAN und Update-Funktion** lassen sich nicht automatisch testen: grüner Build, dann
-  Kontrolle auf dem echten Board.
-- Vor jedem Push: `node --check main/app.js`, und bei Änderungen an `tools/preview.py` dessen Syntax prüfen.
-- **Vorschau:** die Weboberfläche mit `python tools/preview.py` (Testdaten, README „Weboberfläche lokal
-  testen“). Für das Display Pixel-Vorschauen (Schrift 3×5 Pixel, Welt 107×80 Pixel, jedes Pixel auf dem
-  Display 3×3) oder ein Foto vom Board.
+- Two people work on this project: the creator of the repository and a friend who uses the board. **Neither
+  of them programs**; both work with AI assistants. They test on the real board and decide what gets merged
+  and released.
 
-### Veröffentlichen
+### Build and test
 
-- Ein Release löst man **per Hand über die Actions-Seite** aus: Workflow „Firmware bauen“ → „Run workflow“
-  auf `main` → Feld `release_tag` (z. B. `v1.9`). Der Workflow legt Tag und Release an und hängt
-  `newsboard.bin`, `newsboard-legacy.bin` und die beiden `-full.bin` an.
-- Die Beschreibung des Releases kommt aus `docs/release-einleitung.md`, darunter die automatische
-  Änderungsliste.
-- Die Boards holen Updates selbst vom neuesten Release (Online-Update). Ein Release ist also sofort bei
-  allen Boards sichtbar, die danach suchen oder nachts automatisch installieren.
+- The firmware is an ESP-IDF v5.3 project for the ESP32-C6. Cloud sessions have **no local ESP-IDF**: the
+  GitHub build (`.github/workflows/build.yml`, "Firmware bauen") is the compile check. It runs on every
+  push, builds the standard and the legacy variant (old 2" panel) and runs the host tests. Wait for the run
+  after pushing; merge only when it is green.
+- **Host tests** cover logic that also runs on a PC (so far the iCal parser, `tests/test_ical.py`; how to run
+  it: README, "Tests"). New logic of that kind (parsers, text wrapping, settings validation) gets a test and
+  a sabotage check.
+- **Display, animation, Wi-Fi and the update function** cannot be tested automatically: green build, then a
+  check on the real board.
+- Before every push: `node --check main/app.js`, and a syntax check of `tools/preview.py` when it changed.
+- **Previews:** the web UI with `python tools/preview.py` (sample data, README "Weboberfläche lokal
+  testen"). For the display, pixel previews (font 3x5 pixels, world 107x80 pixels, each pixel 3x3 on the
+  display) or a photo of the board.
 
-### Fallen
+### Release
 
-- **Online-Update** (`main/ota.c`):
-  - GitHub leitet `releases/download/...` auf eine **signierte** Adresse weiter. Die Signatur steckt in der
-    Query; `esp_http_client_get_url()` lässt die Query weg, deshalb den `Location`-Header roh mitschneiden.
-  - Die Weiterleitung **per GET** auflösen, nicht per HEAD: GitHub signiert passend zur Methode, eine per
-    HEAD erhaltene Adresse liefert beim Download 401.
-  - Der Download-Server schickt TLS-Pakete von 16 KB. Der zersplitterte Speicher des Boards hat dafür keinen
-    zusammenhängenden Block (`alloc(16749 bytes) failed`). Deshalb lädt das Board in **8-KB-Teilen** per
-    Range über eine Verbindung und nutzt kein `esp_https_ota`.
-  - Ein Fehler in der Update-Funktion lässt sich nur per **manuellem Upload** beheben, weil der Knopf ja
-    genau den Fehler hat. Änderungen an `ota.c` besonders sorgfältig prüfen.
-- **Einstellungen** (`main/config.c`, `config.h`):
-  - Die Einstellungen liegen als ein Block im NVS. Seine Größe ist mit `_Static_assert` auf 5180 Byte
-    festgelegt und darf sich nicht ändern, sonst gelten alte Einstellungen als ungültig.
-  - Es ist **kein freies Byte** mehr übrig. Neue Schalter stecken als Bits in `theme`: Bit 0 Figur, Bit 1
-    Terminal-Kopfzeile, Bit 2 blinkender Doppelpunkt. Nur über die Hilfsfunktionen lesen (`THEME_FIGURE()`,
-    `config_tty_header()`, `config_tty_blink()`), und beim Schreiben eines Bits die anderen erhalten.
-- **Anzeige:**
-  - Eigene Schriftzeichen nutzen Steuercodes unter dem Leerzeichen: 1–3 Ä/Ö/Ü, 4 ß, 5 Gradzeichen
-    (`TEXT_DEG` in `main/text.h`).
-  - Die Kopfzeile ist schmal (107 Pixel, 4 Pixel je Zeichen): neue Elemente nur zeichnen, wenn Platz ist.
+- A release is started **by hand on the Actions page**: workflow "Firmware bauen" -> "Run workflow" on
+  `main` -> field `release_tag` (e.g. `v1.9`). The workflow creates tag and release and attaches
+  `newsboard.bin`, `newsboard-legacy.bin` and both `-full.bin` files.
+- The release description comes from `docs/release-einleitung.md`, followed by the automatic list of
+  changes.
+- Boards fetch updates from the latest release themselves (online update). A release reaches every board that
+  checks for updates or installs them automatically at night.
 
-### Grenzen der Umgebung
+### Traps
 
-- Aus Cloud-Sitzungen lassen sich **keine Tags pushen** (HTTP 403) und **keine Branches auf GitHub
-  löschen**. Releases deshalb immer über den Workflow; erledigte Branches löscht ein Mensch auf GitHub.
-- Kein lokales ESP-IDF (siehe „Bauen und Testen“).
+- **Online update** (`main/ota.c`):
+  - GitHub redirects `releases/download/...` to a **signed** URL. The signature is in the query;
+    `esp_http_client_get_url()` drops the query, so capture the raw `Location` header.
+  - Resolve the redirect **with GET**, not HEAD: GitHub signs for the request method, and a URL obtained via
+    HEAD returns 401 on download.
+  - The download server sends 16 KB TLS records. The board's fragmented heap has no contiguous block for
+    that (`alloc(16749 bytes) failed`). So the board downloads in **8 KB Range parts** over one connection
+    and does not use `esp_https_ota`.
+  - A bug in the update function can only be fixed by a **manual upload**, because the update button is
+    what is broken. Review changes to `ota.c` with extra care.
+- **Settings** (`main/config.c`, `config.h`):
+  - The settings are one blob in NVS. Its size is pinned to 5180 bytes with `_Static_assert` and must not
+    change, or old settings become invalid.
+  - There is **no free byte** left. New switches live as bits in `theme`: bit 0 figure, bit 1 terminal
+    header, bit 2 blinking colon. Read them only through the helpers (`THEME_FIGURE()`,
+    `config_tty_header()`, `config_tty_blink()`), and keep the other bits when writing one.
+- **Display:**
+  - Custom glyphs use control codes below space: 1-3 Ä/Ö/Ü, 4 ß, 5 degree sign (`TEXT_DEG` in
+    `main/text.h`).
+  - The header bar is narrow (107 pixels, 4 pixels per character): draw new elements only when there is room.
+
+### Limits of the environment
+
+- Cloud sessions **cannot push tags** (HTTP 403) and **cannot delete branches on GitHub**. Releases always go
+  through the workflow; a person deletes finished branches on GitHub.
+- No local ESP-IDF (see "Build and test").
+- Most existing documentation (README, release notes, commit history) and the board's display texts are in
+  German. Display texts stay German (the product is made for German users); translating the docs is a
+  choice for the people, not something to do on your own.
