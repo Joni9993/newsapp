@@ -87,5 +87,5 @@ jobs:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: dist/*.bin
-          body_path: docs/release-einleitung.md
+          body_path: docs/release-intro.md
           generate_release_notes: true
