@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v7: general (AGENTS.md) - begin -->
+<!-- owner-rules v8: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -77,6 +77,25 @@ project itself is described in the [README](README.md).
   everything in the repository; texts shown to users inside the product or in a store, such as "what's new",
   in every language the product offers).
 
+### Repository
+
+Aim for what is common practice on GitHub, in proportion to the project: a small experiment needs less than
+something others install. **Do not restructure an existing repository on your own**: point out what is
+missing, with a recommendation, and let the people choose.
+
+- **README**: what the project is (with a picture where it helps), how to install and use it, how to work on
+  it (build, test, release), and its licence. Keep it up to date with every change that affects it.
+- **Pull request descriptions**: what changes, why, how it was tested (and what was not), and anything the
+  reviewer should know.
+- **Automatic checks (CI)**: every push and pull request builds the project and runs its tests
+  automatically; merge only when they pass. Where a project has none, offer to set it up.
+- **Releases**: version numbers `vMAJOR.MINOR.PATCH` (e.g. `v1.4.2`: major for breaking changes, minor for
+  new features, patch for fixes). Files that are published are built by CI, never by hand. Each release says
+  in plain words what is new and how to install or update.
+- **Basics**: a `.gitignore` for build output and local files, a **licence** file (without one, nobody may
+  legally reuse the code, even in a public repository; the choice of licence is the people's), and a
+  `CHANGELOG.md` where releases alone do not tell the story.
+
 ### Showing changes
 
 - Show visual changes rather than describing them: **screenshots** where the result runs on a computer.
@@ -96,7 +115,7 @@ project itself is described in the [README](README.md).
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v7: general (AGENTS.md) - end -->
+<!-- owner-rules v8: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
@@ -136,6 +155,15 @@ project itself is described in the [README](README.md).
   changes.
 - Boards fetch updates from the latest release themselves (online update). A release reaches every board that
   checks for updates or installs them automatically at night.
+
+### Repository
+
+- **Licence:** none yet. Without a licence file nobody may legally reuse the code; choosing one is the
+  people's decision (open).
+- **Version scheme:** releases so far use `v1.8` and `v1.8.3`. From now on use `vMAJOR.MINOR.PATCH`
+  (e.g. `v1.9.0`); the boards compare version strings for equality only, so the switch is safe.
+- **CI** (`.github/workflows/build.yml`): on every push and pull request it checks the web UI script, runs
+  the host tests and builds both firmware variants; releases are built by the same workflow.
 
 ### Traps
 
