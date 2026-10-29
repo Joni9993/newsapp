@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v4: general (AGENTS.md) - begin -->
+<!-- owner-rules v5: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -25,8 +25,13 @@ project itself is described in the [README](README.md).
 
 - **Everything in the repository is English**: files and documentation, code comments, commit messages,
   branch names, pull requests, issues and release notes. Only the conversation with the people is German.
-- Text that the product itself shows to its users (an app's interface, a device's display) stays in the
-  language the product is made for.
+- Text that the product itself shows to its users (an app's interface, a device's display, its store page)
+  stays in the language or languages the product is made for. "Project knowledge" names them.
+- **A product in several languages stays in all of them.** Every new or changed text goes into every
+  language the product offers, in the same change; never leave one language behind, drop one, or fall back
+  to another language silently. Write each language naturally (not word for word), with its proper
+  characters (ä, ö, ü, ß in German). Check that no text is missing in any language before calling the change
+  done.
 - Where a project still has older content in another language, do not translate it on your own: offer it as
   a choice.
 
@@ -44,6 +49,26 @@ project itself is described in the [README](README.md).
 - Run the project's checks before pushing, as "Project knowledge" or the project's own instructions say.
   Where they say nothing: the checks that cover what changed, and the whole suite when the change could have
   effects elsewhere.
+
+### Safety and data
+
+- **Never put secrets into the repository**: passwords, API keys, tokens, private addresses. Use the
+  project's way of keeping them out (environment, settings, `.gitignore`); if there is none, ask.
+- **Personal data** (of the people or of the product's users) is not sent anywhere new, logged or published
+  without asking.
+- **What users have stays usable after an update**: their settings, saved data, accounts. When a change
+  would break or reset them, say so before building and offer a way to carry them over.
+- **Ask before anything hard to undo**: deleting data or files that are not part of the change, rewriting
+  history, changing a live service, publishing to a store.
+- **New libraries or services** only with a reason, said in plain words; prefer what the project already
+  uses.
+
+### Changes
+
+- **One topic per change** (branch, pull request): easier to check, to release and to undo.
+- Changes that users notice go into the release notes or changelog in plain words (in English, like
+  everything in the repository; texts shown to users inside the product or in a store, such as "what's new",
+  in every language the product offers).
 
 ### Showing changes
 
@@ -64,7 +89,7 @@ project itself is described in the [README](README.md).
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v4: general (AGENTS.md) - end -->
+<!-- owner-rules v5: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
@@ -73,6 +98,11 @@ project itself is described in the [README](README.md).
 - Two people work on this project: the creator of the repository and a friend who uses the board. **Neither
   of them programs**; both work with AI assistants. They test on the real board and decide what gets merged
   and released.
+
+### Product languages
+
+- The board shows its texts in **German only** (display texts, messages of the web interface). Keep it that
+  way; no second language is planned.
 
 ### Build and test
 
