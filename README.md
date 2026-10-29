@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/logo.svg" alt="Logo: pixel owl" width="160"></p>
 
-# Nachrichtenbote (Newsboard)
+# Newsboard
 
 A small info display built on a **Seeed XIAO ESP32-C6** with an
 **ST7789 TFT (320×240, landscape)**. An animated courier owl (or, if you prefer,
