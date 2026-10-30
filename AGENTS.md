@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v8: general (AGENTS.md) - begin -->
+<!-- owner-rules v9: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -66,11 +66,15 @@ project itself is described in the [README](README.md).
 ### Changes
 
 - **One topic per change** (branch, pull request): easier to check, to release and to undo.
-- **Branch names say what the change is about**: `type/short-topic`, lower case, English, words joined by
-  hyphens - `feature/` for something new, `fix/` for a bug, `docs/` for documentation, `chore/` for tidying
-  up (e.g. `feature/online-update`, `fix/ota-redirect-query`, `docs/ai-rules`). Not who or when, and nothing
-  vague like `test` or `update2`. Where the project has its own naming habits, follow them; where the
-  environment gives the session a fixed branch name, use that unless the person asks for another.
+- **One branch per task.** Create it from the latest default branch (usually `main`) with a name that says
+  what the change is about: `type/short-topic`, lower case, English, words joined by hyphens - `feature/` for
+  something new, `fix/` for a bug, `docs/` for documentation, `chore/` for tidying up (e.g.
+  `feature/online-update`, `fix/ota-redirect-query`, `docs/ai-rules`). Not who or when, and nothing vague like
+  `test` or `update2`. Push to that branch instead of the random branch name the environment gives the
+  session; this is the owner's standing permission to push to such branches. A new task in the same session
+  gets a new branch. Merge into the default branch only when the person asks for it; where others work on the
+  project, propose the merge as a pull request instead. Where the project has its own naming habits, follow
+  them.
 - **Commit messages and pull request titles** say in one line what changes, e.g. "Fix online update: keep
   the signed download URL"; more detail, and why, goes below.
 - Changes that users notice go into the release notes or changelog in plain words (in English, like
@@ -115,7 +119,7 @@ missing, with a recommendation, and let the people choose.
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v8: general (AGENTS.md) - end -->
+<!-- owner-rules v9: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
