@@ -158,8 +158,7 @@ missing, with a recommendation, and let the people choose.
 
 ### Repository
 
-- **Licence:** none yet. Without a licence file nobody may legally reuse the code; choosing one is the
-  people's decision (open).
+- **Licence:** MIT (`LICENSE`). The bundled QR code library in `main/vendor/` keeps its own licence.
 - **Version scheme:** releases so far use `v1.8` and `v1.8.3`. From now on use `vMAJOR.MINOR.PATCH`
   (e.g. `v1.9.0`); the boards compare version strings for equality only, so the switch is safe.
 - **CI** (`.github/workflows/build.yml`): on every push and pull request it checks the web UI script, runs

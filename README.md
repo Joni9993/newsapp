@@ -249,3 +249,8 @@ python tests/test_ical.py
 ```
 
 The GitHub build runs these tests automatically on every push.
+
+## License
+
+Released under the [MIT License](LICENSE). The bundled QR code library in `main/vendor/`
+keeps its own licence (see the header of its files).
