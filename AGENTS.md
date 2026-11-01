@@ -116,8 +116,11 @@ missing, with a recommendation, and let the people choose.
   - **Private**: recommend nothing where the repository belongs to the rules' owner: they have no GitHub Pro,
     and in a free account branch protection and rulesets exist only for public repositories (source:
     `github/docs`, file `data/reusables/gated-features/protected-branches.md`). They can ignore GitHub's
-    notes about missing protection there. Where the repository belongs to someone else, their plan decides,
-    not the rules' owner's: do not assume, and do not recommend anything.
+    notes about missing protection there. Where the repository belongs to someone else, their plan decides
+    and you cannot see it: mention once that protection on a private repository needs a paid plan (Pro or
+    Team), and leave the decision to its owner.
+  - **If you cannot tell** whether the repository is public or private (no way to look it up), ask instead of
+    guessing.
   - **Whose repository it is matters**: only the repository's owner (or an admin) can open its settings. Where
     it belongs to someone else, say so and tell the person to pass the steps on to them.
 
@@ -128,6 +131,10 @@ missing, with a recommendation, and let the people choose.
   3. **Target branches → Add target → Include default branch**.
   4. **Restrict deletions** und **Block force pushes** angehakt lassen.
   5. **Require status checks to pass** nur anhaken, wenn das Projekt CI hat; dann die CI-Prüfung auswählen.
+     Achtung: Dann kann niemand mehr direkt auf `main` pushen, jede Änderung muss erst auf einem anderen
+     Branch die Prüfung bestehen. Das passt nur, wenn ohnehin nichts direkt auf `main` geschrieben wird
+     (auch kein Workflow). Bleibt ein Merge hängen, zuerst dort nachsehen: ob die Prüfung umbenannt wurde
+     oder bei dieser Änderung gar nicht lief.
   6. **Nicht** "Require a pull request before merging" mit Approvals anhaken: Wer allein arbeitet, kann eigene
      Pull Requests nicht freigeben und würde sich selbst aussperren. Auch zu zweit ist es nicht nötig und
      bremst nur jeden Merge; der Schutz vor Force-Push und Löschen reicht.
