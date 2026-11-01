@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v11: general (AGENTS.md) - begin -->
+<!-- owner-rules v12: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -110,13 +110,16 @@ missing, with a recommendation, and let the people choose.
   `CHANGELOG.md` where releases alone do not tell the story.
 
 - **Protecting `main`**: when the rules are installed, check whether the repository is public or private.
-  - **Public**: recommend to the owner to protect `main` against force-pushes and deletion, and give them the
-    steps below. The owner decides whether it makes sense for this project. You cannot set it up yourself,
+  - **Public**: recommend to protect `main` against force-pushes and deletion, and give the steps below. The
+    owner of the repository decides whether it makes sense for this project. You cannot set it up yourself,
     because you have no access to the repository settings.
-  - **Private**: recommend nothing. The owner has no GitHub Pro, and in a free account branch protection and
-    rulesets exist only for public repositories (source: `github/docs`, file
-    `data/reusables/gated-features/protected-branches.md`). The owner can ignore GitHub's notes about missing
-    protection there.
+  - **Private**: recommend nothing where the repository belongs to the rules' owner: they have no GitHub Pro,
+    and in a free account branch protection and rulesets exist only for public repositories (source:
+    `github/docs`, file `data/reusables/gated-features/protected-branches.md`). They can ignore GitHub's
+    notes about missing protection there. Where the repository belongs to someone else, their plan decides,
+    not the rules' owner's: do not assume, and do not recommend anything.
+  - **Whose repository it is matters**: only the repository's owner (or an admin) can open its settings. Where
+    it belongs to someone else, say so and tell the person to pass the steps on to them.
 
   Steps for the owner (give them in German):
 
@@ -125,8 +128,9 @@ missing, with a recommendation, and let the people choose.
   3. **Target branches → Add target → Include default branch**.
   4. **Restrict deletions** und **Block force pushes** angehakt lassen.
   5. **Require status checks to pass** nur anhaken, wenn das Projekt CI hat; dann die CI-Prüfung auswählen.
-  6. **Nicht** "Require a pull request before merging" mit Approvals anhaken: Der Owner arbeitet allein und
-     kann eigene Pull Requests nicht freigeben, er würde sich selbst aussperren.
+  6. **Nicht** "Require a pull request before merging" mit Approvals anhaken: Wer allein arbeitet, kann eigene
+     Pull Requests nicht freigeben und würde sich selbst aussperren. Auch zu zweit ist es nicht nötig und
+     bremst nur jeden Merge; der Schutz vor Force-Push und Löschen reicht.
   7. Auf **Create** klicken.
 
   Geklappt hat es, wenn das Ruleset in der Liste unter **Rulesets** als "Active" steht.
@@ -152,7 +156,7 @@ missing, with a recommendation, and let the people choose.
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v11: general (AGENTS.md) - end -->
+<!-- owner-rules v12: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
