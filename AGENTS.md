@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v12: general (AGENTS.md) - begin -->
+<!-- owner-rules v13: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -74,8 +74,7 @@ project itself is described in the [README](README.md).
   `feature/online-update`, `fix/ota-redirect-query`, `docs/ai-rules`). Not who or when, and nothing vague like
   `test` or `update2`. Push to that branch instead of the random branch name the environment gives the
   session; this is the owner's standing permission to push to such branches. A new task in the same session
-  gets a new branch. Merge into the default branch only when the person asks for it; where others work on the
-  project, propose the merge as a pull request instead. Where the project has its own naming habits, follow
+  gets a new branch. Propose every change as a pull request into the default branch. It is merged when the person merges it on GitHub or asks for it ("übernehmen"); then merge it yourself (never squash away someone else's commits). Where the project has its own naming habits, follow
   them.
 - **After a merge or release, the new version is not everywhere at once.** GitHub keeps copies for a while
   (raw files and download links about 5 minutes, GitHub Pages about 10), and whatever a workflow builds or
@@ -163,7 +162,7 @@ missing, with a recommendation, and let the people choose.
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v12: general (AGENTS.md) - end -->
+<!-- owner-rules v13: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
