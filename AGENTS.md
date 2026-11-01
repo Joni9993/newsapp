@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v9: general (AGENTS.md) - begin -->
+<!-- owner-rules v10: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -75,6 +75,13 @@ project itself is described in the [README](README.md).
   gets a new branch. Merge into the default branch only when the person asks for it; where others work on the
   project, propose the merge as a pull request instead. Where the project has its own naming habits, follow
   them.
+- **After a merge or release, the new version is not everywhere at once.** GitHub keeps copies for a while
+  (raw files and download links about 5 minutes, GitHub Pages about 10), and whatever a workflow builds or
+  publishes only exists once its run has finished. Tell the person **how long to wait** (from the cache times
+  and how long the project's last run took) and **how to check that the new version has arrived**: the run
+  finished green under "Actions", the new version number in the app, on the release page or in the file, the
+  new text on the page after a reload that bypasses the browser's cache. Where you can check it yourself, do
+  so before calling it done, and say what you saw.
 - **Commit messages and pull request titles** say in one line what changes, e.g. "Fix online update: keep
   the signed download URL"; more detail, and why, goes below.
 - Changes that users notice go into the release notes or changelog in plain words (in English, like
@@ -119,7 +126,7 @@ missing, with a recommendation, and let the people choose.
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v9: general (AGENTS.md) - end -->
+<!-- owner-rules v10: general (AGENTS.md) - end -->
 
 ## Project knowledge
 

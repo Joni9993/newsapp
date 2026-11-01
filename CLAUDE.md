@@ -1,6 +1,6 @@
 @AGENTS.md
 
-<!-- owner-rules v9: claude (CLAUDE.md) - begin -->
+<!-- owner-rules v10: claude (CLAUDE.md) - begin -->
 
 ## Claude: models and usage
 
@@ -45,4 +45,4 @@ and when the owner says the limits or the offer have changed, follow what they s
 - Keep tool output short: filter logs and test runs to what matters rather than reading them whole.
 - Waiting for something (a build, a release): schedule a check-in instead of polling step by step.
 
-<!-- owner-rules v9: claude (CLAUDE.md) - end -->
+<!-- owner-rules v10: claude (CLAUDE.md) - end -->
