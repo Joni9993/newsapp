@@ -3,7 +3,7 @@
 Every AI tool working in this repository reads this file (Claude Code reads it through `CLAUDE.md`). The
 project itself is described in the [README](README.md).
 
-<!-- owner-rules v13: general (AGENTS.md) - begin -->
+<!-- owner-rules v14: general (AGENTS.md) - begin -->
 
 ## General rules
 
@@ -76,9 +76,10 @@ project itself is described in the [README](README.md).
   session; this is the owner's standing permission to push to such branches. A new task in the same session
   gets a new branch. Propose every change as a pull request into the default branch. It is merged when the person merges it on GitHub or asks for it ("übernehmen"); then merge it yourself (never squash away someone else's commits). Where the project has its own naming habits, follow
   them.
-- **After a merge or release, the new version is not everywhere at once.** GitHub keeps copies for a while
-  (raw files and download links about 5 minutes, GitHub Pages about 10), and whatever a workflow builds or
-  publishes only exists once its run has finished. Tell the person **how long to wait** (from the cache times
+- **After a merge or release, the new version is not everywhere at once.** GitHub keeps copies for a while:
+  GitHub Pages is usually live a minute or two after its run has finished, but browsers may show the old page
+  for up to 10 minutes (raw files and download links up to about 5) unless reloaded without the cache;
+  whatever a workflow builds or publishes only exists once its run has finished. Tell the person **how long to wait** (from the cache times
   and how long the project's last run took) and **how to check that the new version has arrived**: the run
   finished green under "Actions", the new version number in the app, on the release page or in the file, the
   new text on the page after a reload that bypasses the browser's cache. Where you can check it yourself, do
@@ -162,7 +163,7 @@ missing, with a recommendation, and let the people choose.
   conversation: decisions and why, traps that cost time, how to build, test and release, and the limits of
   the environment (what a cloud session cannot do there).
 
-<!-- owner-rules v13: general (AGENTS.md) - end -->
+<!-- owner-rules v14: general (AGENTS.md) - end -->
 
 ## Project knowledge
 
